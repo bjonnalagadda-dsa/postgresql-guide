@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PostgreSQL Part 4 — Production: Partitioning, Replication, Backup, Tuning & Monitoring</title>
+  <style>
+    :root {
+      --bg:#0e1016;--surface:#161b27;--surface2:#1e2536;--border:#2a3350;
+      --accent:#4f86f7;--accent2:#00c9a7;--accent3:#f7c948;--accent4:#f06595;
+      --text:#e2e8f0;--muted:#7a8ba8;--code-bg:#0a0d14;--radius:12px;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    html{scroll-behavior:smooth;}
+    body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;line-height:1.75;font-size:15px;}
+    .sidebar{position:fixed;left:0;top:0;width:272px;height:100vh;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;z-index:100;}
+    .sidebar::-webkit-scrollbar{width:3px;}.sidebar::-webkit-scrollbar-thumb{background:var(--border);}
+    .sb-header{padding:22px 18px 16px;background:linear-gradient(135deg,#4f86f711,#00c9a708);border-bottom:1px solid var(--border);}
+    .sb-logo{font-size:18px;font-weight:800;color:var(--accent);}
+    .sb-sub{font-size:11px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:1px;}
+    .sb-parts{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;}
+    .sb-part{font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid;text-decoration:none;transition:all .15s;}
+    .sb-part.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+    .sb-part.done{border-color:var(--accent2);color:var(--accent2);background:#00c9a711;}
+    .sb-part.complete{border-color:var(--accent3);color:var(--accent3);background:#f7c94811;}
+    .sb-section-title{padding:12px 18px 4px;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:700;}
+    .sidebar a.nav-link{display:flex;align-items:center;gap:8px;padding:7px 18px;color:var(--muted);text-decoration:none;font-size:13px;border-left:2px solid transparent;transition:all .15s;}
+    .sidebar a.nav-link:hover{color:var(--text);background:var(--surface2);border-left-color:var(--border);}
+    .sidebar a.nav-link.active{color:var(--accent);border-left-color:var(--accent);background:#4f86f70a;font-weight:600;}
+    .nav-num{font-size:10px;color:var(--border);font-weight:700;min-width:16px;}
+    .progress-bar{height:3px;background:var(--border);}
+    .progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0%;transition:width .3s;}
+    .main{margin-left:272px;}
+    .hero{padding:72px 64px 56px;position:relative;overflow:hidden;border-bottom:1px solid var(--border);background:radial-gradient(ellipse at 20% 50%,#4f86f712 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,#00c9a708 0%,transparent 50%);}
+    .eyebrow-badge{background:#4f86f711;border:1px solid #4f86f744;color:var(--accent);padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;}
+    .hero h1{font-size:44px;font-weight:900;line-height:1.1;letter-spacing:-1px;margin:16px 0 14px;}
+    .hero h1 .pg{color:var(--accent);}.hero h1 .part{color:var(--accent3);font-size:24px;display:block;font-weight:700;}
+    .hero-desc{font-size:17px;color:var(--muted);max-width:600px;margin-bottom:28px;line-height:1.6;}
+    .hero-chips{display:flex;flex-wrap:wrap;gap:8px;}
+    .chip{display:flex;align-items:center;gap:5px;padding:5px 12px;background:var(--surface);border:1px solid var(--border);border-radius:20px;font-size:12px;color:var(--muted);}
+    .chip .dot{width:6px;height:6px;border-radius:50%;}
+    .content{padding:0 64px 100px;}
+    .lesson{padding:56px 0 48px;border-bottom:1px solid var(--border);}
+    .lesson:last-child{border-bottom:none;}
+    .lesson-header{display:flex;align-items:flex-start;gap:16px;margin-bottom:28px;}
+    .lesson-num{font-size:11px;font-weight:800;color:var(--accent);background:#4f86f711;border:1px solid #4f86f733;border-radius:8px;padding:4px 8px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;margin-top:4px;}
+    .lesson-title{font-size:26px;font-weight:800;line-height:1.2;margin-bottom:4px;}
+    .lesson-sub{font-size:14px;color:var(--muted);}
+    .teacher{display:flex;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin:20px 0;}
+    .teacher-avatar{font-size:24px;flex-shrink:0;}
+    .teacher-body{font-size:14px;color:var(--muted);line-height:1.65;}
+    .teacher-body strong{color:var(--text);}
+    .box{border-radius:var(--radius);padding:16px 20px;margin:16px 0;font-size:14px;line-height:1.6;}
+    .box-tip{background:#00c9a70d;border:1px solid #00c9a730;border-left:3px solid var(--accent2);}
+    .box-warn{background:#f7c9480d;border:1px solid #f7c94830;border-left:3px solid var(--accent3);}
+    .box-info{background:#4f86f70d;border:1px solid #4f86f730;border-left:3px solid var(--accent);}
+    .box-danger{background:#f065950d;border:1px solid #f0659530;border-left:3px solid var(--accent4);}
+    .box-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:flex;align-items:center;gap:5px;}
+    .box-tip .box-label{color:var(--accent2);}.box-warn .box-label{color:var(--accent3);}
+    .box-info .box-label{color:var(--accent);}.box-danger .box-label{color:var(--accent4);}
+    .code-wrap{margin:18px 0;}
+    .code-header{display:flex;align-items:center;background:#131720;border:1px solid var(--border);border-bottom:none;border-radius:var(--radius) var(--radius) 0 0;padding:8px 16px;}
+    .code-lang{font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;}
+    .code-body{background:var(--code-bg);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius);padding:18px 20px;overflow-x:auto;}
+    .code-body pre{font-family:'JetBrains Mono','Fira Code',monospace;font-size:13.5px;line-height:1.75;}
+    .kw{color:#79b8ff;font-weight:600;}.fn{color:#b392f0;}.str{color:#9ecbff;}
+    .num{color:#f97583;}.cmt{color:#444d56;font-style:italic;}.tbl{color:#f8e3a1;}
+    .typ{color:#85e89d;}.sh{color:#f7c948;}.conf{color:#f06595;}
+    code{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-family:monospace;font-size:13px;color:var(--accent2);}
+    .tbl-wrap{overflow-x:auto;margin:16px 0;}
+    table{width:100%;border-collapse:collapse;font-size:13.5px;}
+    th{background:var(--surface2);padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);border-bottom:2px solid var(--border);font-weight:700;}
+    td{padding:10px 14px;border-bottom:1px solid var(--border);color:var(--muted);vertical-align:top;}
+    tr:hover td{background:var(--surface);color:var(--text);}
+    td code{font-size:12px;}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0;}
+    .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0;}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;transition:all .2s;}
+    .card:hover{border-color:var(--accent);transform:translateY(-2px);}
+    .card h4{font-size:14px;font-weight:700;margin-bottom:8px;}
+    .card p{font-size:13px;color:var(--muted);line-height:1.5;}
+    .steps{display:flex;flex-direction:column;gap:0;margin:20px 0;}
+    .step{display:flex;gap:18px;padding-bottom:24px;position:relative;}
+    .step:last-child{padding-bottom:0;}
+    .step-left{display:flex;flex-direction:column;align-items:center;}
+    .step-num{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+    .step-line{flex:1;width:2px;background:linear-gradient(to bottom,var(--accent),transparent);margin-top:4px;}
+    .step:last-child .step-line{display:none;}
+    .step-body{flex:1;}
+    .step-title{font-weight:700;font-size:15px;margin-bottom:4px;}
+    .step-desc{font-size:13.5px;color:var(--muted);}
+    .arch-diagram{background:var(--code-bg);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin:16px 0;font-family:'JetBrains Mono','Fira Code',monospace;font-size:13px;line-height:1.9;overflow-x:auto;}
+    .arch-diagram .node{color:var(--accent);}
+    .arch-diagram .arrow{color:var(--muted);}
+    .arch-diagram .label{color:var(--accent2);}
+    .arch-diagram .note{color:var(--accent3);}
+    .summary{background:linear-gradient(135deg,#4f86f710,#00c9a708);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin:24px 0;}
+    .summary h4{font-size:15px;font-weight:800;color:var(--accent2);margin-bottom:12px;}
+    .summary ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+    .summary ul li{font-size:13.5px;color:var(--muted);display:flex;align-items:flex-start;gap:8px;}
+    .summary ul li::before{content:'✓';color:var(--accent2);font-weight:700;flex-shrink:0;}
+    .complete-banner{background:linear-gradient(135deg,#4f86f722,#00c9a718);border:1px solid var(--accent2);border-radius:var(--radius);padding:28px 32px;margin:32px 0;text-align:center;}
+    .complete-banner .icon{font-size:48px;margin-bottom:12px;}
+    .complete-banner h3{font-size:22px;font-weight:800;color:var(--accent2);margin-bottom:8px;}
+    .complete-banner p{color:var(--muted);font-size:15px;max-width:520px;margin:0 auto 20px;}
+    .cert-links{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+    .cert-link{padding:10px 20px;border-radius:8px;border:1px solid;font-size:13px;font-weight:600;text-decoration:none;transition:all .15s;}
+    .cert-link.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+    .cert-link.secondary{border-color:var(--border);color:var(--muted);background:var(--surface);}
+    .cert-link:hover{opacity:.88;}
+    .quiz{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin:24px 0;}
+    .quiz-q{font-weight:700;font-size:15px;margin-bottom:14px;}
+    .quiz-options{display:flex;flex-direction:column;gap:8px;}
+    .quiz-opt{padding:10px 16px;border-radius:8px;border:1px solid var(--border);cursor:pointer;font-size:13.5px;color:var(--muted);transition:all .15s;text-align:left;background:var(--bg);}
+    .quiz-opt:hover{border-color:var(--accent);color:var(--text);}
+    .quiz-opt.correct{border-color:var(--accent2);background:#00c9a710;color:var(--accent2);}
+    .quiz-opt.wrong{border-color:var(--accent4);background:#f0659510;color:var(--accent4);}
+    .quiz-explain{margin-top:12px;font-size:13px;color:var(--muted);display:none;}
+    .quiz-explain.show{display:block;}
+    .nav-btns{display:flex;justify-content:space-between;padding:24px 0 0;border-top:1px solid var(--border);margin-top:20px;}
+    .nav-btn{display:flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:13px;font-weight:600;text-decoration:none;transition:all .15s;}
+    .nav-btn:hover{border-color:var(--accent);color:var(--accent);}
+    .nav-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+    .hamburger{display:none;position:fixed;top:14px;left:14px;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;cursor:pointer;font-size:16px;}
+    footer{text-align:center;padding:32px;color:var(--muted);font-size:12px;border-top:1px solid var(--border);}
+    @media(max-width:820px){
+      .sidebar{transform:translateX(-100%);transition:transform .3s;}.sidebar.open{transform:translateX(0);}
+      .main{margin-left:0;}.hero{padding:56px 24px 40px;}.hero h1{font-size:26px;}
+      .content{padding:0 24px 80px;}.hamburger{display:block;}
+      .grid2,.grid3{grid-template-columns:1fr;}
+    }
+    p{color:var(--muted);margin:10px 0;font-size:14.5px;line-height:1.75;}
+    h3{font-size:18px;font-weight:700;color:var(--text);margin:24px 0 10px;}
+    h4{font-size:15px;font-weight:700;color:var(--text);margin:18px 0 8px;}
+    strong{color:var(--text);}
+    ul,ol{padding-left:20px;color:var(--muted);font-size:14.5px;line-height:1.8;}
+    li{margin:3px 0;}
+  </style>
+</head>
+<body>
+<button class="hamburger" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+
+<aside class="sidebar">
+  <div class="sb-header">
+    <div class="sb-logo">🐘 PostgreSQL</div>
+    <div class="sb-sub">Learn from Zero — Teacher Mode</div>
+    <div class="sb-parts">
+      <a class="sb-part done" href="index.html">Part 1</a>
+      <a class="sb-part done" href="part2.html">Part 2</a>
+      <a class="sb-part done" href="part3.html">Part 3</a>
+      <a class="sb-part active" href="#">Part 4</a>
+    </div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+
+  <div class="sb-section-title">Part 4 — Production PostgreSQL</div>
+  <a class="nav-link active" href="#partitioning"><span class="nav-num">01</span>Table Partitioning</a>
+  <a class="nav-link" href="#replication"><span class="nav-num">02</span>Replication & HA</a>
+  <a class="nav-link" href="#backup"><span class="nav-num">03</span>Backup & Restore</a>
+  <a class="nav-link" href="#tuning"><span class="nav-num">04</span>Configuration Tuning</a>
+  <a class="nav-link" href="#monitoring"><span class="nav-num">05</span>Monitoring & pg_stat</a>
+  <a class="nav-link" href="#pooling"><span class="nav-num">06</span>Connection Pooling</a>
+  <a class="nav-link" href="#security"><span class="nav-num">07</span>Security Hardening</a>
+  <a class="nav-link" href="#extensions"><span class="nav-num">08</span>Must-Know Extensions</a>
+  <a class="nav-link" href="#recap"><span class="nav-num">09</span>Final Recap & Next Steps</a>
+</aside>
+
+<main class="main">
+  <div class="hero">
+    <span class="eyebrow-badge">Part 4 of 4 — Production PostgreSQL</span>
+    <h1>
+      <span class="part">🐘 PostgreSQL —</span>
+      Run it in <span class="pg">production</span>
+    </h1>
+    <p class="hero-desc">
+      You know the language. Now learn the operations. Part 4 covers everything between "it works on my machine" and "it handles 10 million users without breaking a sweat" — partitioning, replication, backups, tuning, monitoring, connection pooling, and security.
+    </p>
+    <div class="hero-chips">
+      <span class="chip"><span class="dot" style="background:#4f86f7"></span>~75 min read</span>
+      <span class="chip"><span class="dot" style="background:#00c9a7"></span>9 lessons</span>
+      <span class="chip"><span class="dot" style="background:#f7c948"></span>Final Part</span>
+      <span class="chip"><span class="dot" style="background:#f06595"></span>DevOps + DBA skills</span>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ═══════════════════════════════════
+         01 — TABLE PARTITIONING
+    ═══════════════════════════════════ -->
+    <section class="lesson" id="partitioning">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 01</span>
+        <div>
+          <div class="lesson-title">Table Partitioning</div>
+          <div class="lesson-sub">Split massive tables into manageable pieces — keep queries fast at scale</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>When your orders table has 500 million rows, even an indexed query gets slow.</strong> Partitioning splits one logical table into many physical sub-tables called partitions. A query for "orders this month" only scans November's partition — not all 500M rows. PostgreSQL handles this transparently. Your app still queries <code>orders</code> like normal.
+        </div>
+      </div>
+
+      <h3>Three partitioning strategies</h3>
+      <div class="grid3">
+        <div class="card">
+          <h4>📅 RANGE</h4>
+          <p>Split by value ranges — dates, IDs. Most common. Orders by month, events by year, logs by day.</p>
+        </div>
+        <div class="card">
+          <h4>📋 LIST</h4>
+          <p>Split by explicit values. Orders by country, events by region. Good when you have a fixed set of categories.</p>
+        </div>
+        <div class="card">
+          <h4>#️⃣ HASH</h4>
+          <p>Split by hash of a column. Even distribution across N partitions. Good when no natural range/list exists.</p>
+        </div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — RANGE partitioning by month</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Step 1: Create the parent (partitioned) table</span>
+<span class="kw">CREATE TABLE</span> <span class="tbl">orders_partitioned</span> (
+    id         <span class="typ">BIGSERIAL</span>,
+    user_id    <span class="typ">BIGINT NOT NULL</span>,
+    total      <span class="typ">NUMERIC(12,2)</span>,
+    status     <span class="typ">VARCHAR(20)</span>,
+    created_at <span class="typ">TIMESTAMPTZ NOT NULL DEFAULT NOW()</span>
+) <span class="kw">PARTITION BY RANGE</span> (created_at);  <span class="cmt">-- partition key</span>
+
+<span class="cmt">-- Step 2: Create child partitions (one per month)</span>
+<span class="kw">CREATE TABLE</span> <span class="tbl">orders_2024_01</span> <span class="kw">PARTITION OF</span> <span class="tbl">orders_partitioned</span>
+    <span class="kw">FOR VALUES FROM</span> (<span class="str">'2024-01-01'</span>) <span class="kw">TO</span> (<span class="str">'2024-02-01'</span>);
+
+<span class="kw">CREATE TABLE</span> <span class="tbl">orders_2024_02</span> <span class="kw">PARTITION OF</span> <span class="tbl">orders_partitioned</span>
+    <span class="kw">FOR VALUES FROM</span> (<span class="str">'2024-02-01'</span>) <span class="kw">TO</span> (<span class="str">'2024-03-01'</span>);
+
+<span class="kw">CREATE TABLE</span> <span class="tbl">orders_2024_03</span> <span class="kw">PARTITION OF</span> <span class="tbl">orders_partitioned</span>
+    <span class="kw">FOR VALUES FROM</span> (<span class="str">'2024-03-01'</span>) <span class="kw">TO</span> (<span class="str">'2024-04-01'</span>);
+
+<span class="cmt">-- A default partition catches any rows that don't match other partitions</span>
+<span class="kw">CREATE TABLE</span> <span class="tbl">orders_default</span> <span class="kw">PARTITION OF</span> <span class="tbl">orders_partitioned</span> <span class="kw">DEFAULT</span>;
+
+<span class="cmt">-- Step 3: Add indexes ON the partitions (or on the parent — auto-applies)</span>
+<span class="kw">CREATE INDEX</span> ON <span class="tbl">orders_partitioned</span>(user_id);
+<span class="kw">CREATE INDEX</span> ON <span class="tbl">orders_partitioned</span>(status, created_at);
+
+<span class="cmt">-- Step 4: INSERT works exactly as before — auto-routes to correct partition</span>
+<span class="kw">INSERT INTO</span> <span class="tbl">orders_partitioned</span> (user_id, total, status, created_at)
+<span class="kw">VALUES</span> (<span class="num">1</span>, <span class="num">99.99</span>, <span class="str">'paid'</span>, <span class="str">'2024-01-15'</span>);
+
+<span class="cmt">-- Step 5: Query just scans the relevant partition (partition pruning)</span>
+<span class="kw">EXPLAIN</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">orders_partitioned</span>
+<span class="kw">WHERE</span> created_at >= <span class="str">'2024-01-01'</span> <span class="kw">AND</span> created_at < <span class="str">'2024-02-01'</span>;
+<span class="cmt">-- You'll see: Seq Scan on orders_2024_01 (only that partition!)</span></pre></div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — LIST and HASH partitioning</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- LIST: partition by country</span>
+<span class="kw">CREATE TABLE</span> <span class="tbl">customers</span> (
+    id      <span class="typ">BIGSERIAL</span>,
+    name    <span class="typ">TEXT</span>,
+    country <span class="typ">CHAR(2) NOT NULL</span>
+) <span class="kw">PARTITION BY LIST</span>(country);
+
+<span class="kw">CREATE TABLE</span> <span class="tbl">customers_us</span> <span class="kw">PARTITION OF</span> <span class="tbl">customers</span>
+    <span class="kw">FOR VALUES IN</span> (<span class="str">'US'</span>);
+<span class="kw">CREATE TABLE</span> <span class="tbl">customers_eu</span> <span class="kw">PARTITION OF</span> <span class="tbl">customers</span>
+    <span class="kw">FOR VALUES IN</span> (<span class="str">'DE'</span>, <span class="str">'FR'</span>, <span class="str">'GB'</span>, <span class="str">'IT'</span>, <span class="str">'ES'</span>);
+<span class="kw">CREATE TABLE</span> <span class="tbl">customers_other</span> <span class="kw">PARTITION OF</span> <span class="tbl">customers</span> <span class="kw">DEFAULT</span>;
+
+<span class="cmt">-- HASH: spread evenly across 4 partitions by user_id</span>
+<span class="kw">CREATE TABLE</span> <span class="tbl">events</span> (
+    id      <span class="typ">BIGSERIAL</span>,
+    user_id <span class="typ">BIGINT NOT NULL</span>,
+    name    <span class="typ">TEXT</span>
+) <span class="kw">PARTITION BY HASH</span>(user_id);
+
+<span class="kw">CREATE TABLE</span> <span class="tbl">events_p0</span> <span class="kw">PARTITION OF</span> <span class="tbl">events</span>
+    <span class="kw">FOR VALUES WITH</span> (MODULUS <span class="num">4</span>, REMAINDER <span class="num">0</span>);
+<span class="kw">CREATE TABLE</span> <span class="tbl">events_p1</span> <span class="kw">PARTITION OF</span> <span class="tbl">events</span>
+    <span class="kw">FOR VALUES WITH</span> (MODULUS <span class="num">4</span>, REMAINDER <span class="num">1</span>);
+<span class="kw">CREATE TABLE</span> <span class="tbl">events_p2</span> <span class="kw">PARTITION OF</span> <span class="tbl">events</span>
+    <span class="kw">FOR VALUES WITH</span> (MODULUS <span class="num">4</span>, REMAINDER <span class="num">2</span>);
+<span class="kw">CREATE TABLE</span> <span class="tbl">events_p3</span> <span class="kw">PARTITION OF</span> <span class="tbl">events</span>
+    <span class="kw">FOR VALUES WITH</span> (MODULUS <span class="num">4</span>, REMAINDER <span class="num">3</span>);</pre></div>
+      </div>
+
+      <h3>Partition management</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Attach, detach, drop old partitions</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Detach a partition (keeps the table, just no longer part of parent)</span>
+<span class="kw">ALTER TABLE</span> <span class="tbl">orders_partitioned</span>
+<span class="kw">DETACH PARTITION</span> <span class="tbl">orders_2024_01</span>;
+
+<span class="cmt">-- Drop an old partition instantly — WAY faster than DELETE</span>
+<span class="kw">DROP TABLE</span> <span class="tbl">orders_2024_01</span>;
+
+<span class="cmt">-- Attach a pre-existing table as a new partition</span>
+<span class="kw">ALTER TABLE</span> <span class="tbl">orders_partitioned</span>
+<span class="kw">ATTACH PARTITION</span> <span class="tbl">orders_2024_12</span>
+<span class="kw">FOR VALUES FROM</span> (<span class="str">'2024-12-01'</span>) <span class="kw">TO</span> (<span class="str">'2025-01-01'</span>);
+
+<span class="cmt">-- List all partitions</span>
+<span class="kw">SELECT</span> inhrelid::regclass <span class="kw">AS</span> partition_name,
+       pg_size_pretty(pg_relation_size(inhrelid)) <span class="kw">AS</span> size
+<span class="kw">FROM</span>   <span class="tbl">pg_inherits</span>
+<span class="kw">WHERE</span>  inhparent = <span class="str">'orders_partitioned'</span>::regclass;</pre></div>
+      </div>
+
+      <div class="box box-tip">
+        <div class="box-label">💡 When to partition</div>
+        Start thinking about partitioning when a single table exceeds <strong>100GB or 100M rows</strong>. Below that, good indexes are usually enough. The biggest benefit: dropping old partitions (<code>DROP TABLE orders_2022_01</code>) is instantaneous — deleting 100M rows is not.
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════
+         02 — REPLICATION & HA
+    ═══════════════════════════════════ -->
+    <section class="lesson" id="replication">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 02</span>
+        <div>
+          <div class="lesson-title">Replication & High Availability</div>
+          <div class="lesson-sub">Streaming replication, read replicas, failover — keeping your DB alive</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>A single database server is a single point of failure.</strong> If it crashes, your app goes down. Replication solves this by keeping one or more standby servers that are exact copies of the primary. If primary dies, a standby takes over in seconds. Read replicas also let you offload heavy read queries to separate servers.
+        </div>
+      </div>
+
+      <div class="arch-diagram">
+<span class="node">┌──────────────────────────────────────────────────────────────┐</span>
+<span class="node">│                     Your Application                        │</span>
+<span class="node">└────────────────┬─────────────────────────┬───────────────────┘</span>
+                 <span class="arrow">│ writes                  │ reads (load balanced)</span>
+                 <span class="arrow">▼                        ▼</span>
+<span class="node">        ┌─────────────────┐    ┌────────────────────────────────┐</span>
+<span class="node">        │  PRIMARY (RW)   │───▶│  STANDBY / REPLICA (RO)       │</span>
+<span class="node">        │  postgres:5432  │    │  postgres:5433                 │</span>
+<span class="node">        └─────────────────┘    └────────────────────────────────┘</span>
+                 <span class="arrow">│ WAL stream                ↑ streaming replication</span>
+                 <span class="arrow">└──────────────────────────┘</span>
+<span class="note">         Changes flow via WAL. Replica lag is typically &lt; 1 second.</span></div>
+
+      <h3>Types of replication</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Type</th><th>What replicates</th><th>Use case</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Streaming (Physical)</strong></td><td>Every byte — full copy of the entire cluster</td><td>High availability, hot standby, read replicas</td></tr>
+            <tr><td><strong>Logical</strong></td><td>Row-level changes for selected tables</td><td>Selective replication, migrations, data pipelines</td></tr>
+            <tr><td><strong>Synchronous</strong></td><td>Commit only after standby confirms receipt</td><td>Zero data loss — slower writes</td></tr>
+            <tr><td><strong>Asynchronous</strong></td><td>Commit immediately, standby catches up</td><td>Default — tiny risk of data loss on crash</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash + sql — Setting up streaming replication</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">════ ON THE PRIMARY SERVER ════════════════════════════════════</span>
+
+<span class="cmt">-- Create a dedicated replication user</span>
+<span class="kw">CREATE USER</span> replicator
+    <span class="kw">WITH REPLICATION</span>
+    <span class="kw">ENCRYPTED PASSWORD</span> <span class="str">'strong_password_here'</span>;
+
+<span class="cmt">-- In postgresql.conf:</span>
+<span class="conf">wal_level = replica           </span><span class="cmt">-- or 'logical' for logical replication</span>
+<span class="conf">max_wal_senders = 5           </span><span class="cmt">-- max simultaneous standbys</span>
+<span class="conf">wal_keep_size = 1GB           </span><span class="cmt">-- keep this much WAL for slow standbys</span>
+<span class="conf">hot_standby = on              </span><span class="cmt">-- allow reads on standby</span>
+
+<span class="cmt">-- In pg_hba.conf (allow replicator to connect):</span>
+<span class="conf">host  replication  replicator  10.0.0.2/32  scram-sha-256</span>
+
+<span class="cmt">-- Reload config</span>
+<span class="kw">SELECT</span> <span class="fn">pg_reload_conf</span>();
+
+<span class="cmt">════ ON THE STANDBY SERVER ════════════════════════════════════</span>
+
+<span class="cmt"># Take a base backup from primary to initialize standby</span>
+<span class="sh">pg_basebackup \
+  -h primary_host \
+  -U replicator \
+  -D /var/lib/postgresql/16/main \
+  -P -Xs -R</span>
+<span class="cmt"># -R writes the recovery config automatically</span>
+<span class="cmt"># -Xs streams WAL during backup</span>
+
+<span class="cmt"># Start the standby — it auto-follows the primary</span>
+<span class="sh">systemctl start postgresql</span>
+
+<span class="cmt">════ CHECK REPLICATION STATUS ═════════════════════════════════</span>
+
+<span class="cmt">-- On primary: see all standbys and their lag</span>
+<span class="kw">SELECT</span>
+    client_addr,
+    state,
+    sent_lsn,
+    write_lsn,
+    flush_lsn,
+    replay_lsn,
+    <span class="fn">pg_size_pretty</span>(
+        <span class="fn">pg_wal_lsn_diff</span>(sent_lsn, replay_lsn)
+    ) <span class="kw">AS</span> replication_lag
+<span class="kw">FROM</span> <span class="tbl">pg_stat_replication</span>;</pre></div>
+      </div>
+
+      <h3>Logical Replication — replicate selected tables</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Logical replication</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- On the SOURCE database: create a publication</span>
+<span class="kw">CREATE PUBLICATION</span> my_pub <span class="kw">FOR TABLE</span> <span class="tbl">users</span>, <span class="tbl">orders</span>;
+
+<span class="cmt">-- Or replicate all tables</span>
+<span class="kw">CREATE PUBLICATION</span> all_tables_pub <span class="kw">FOR ALL TABLES</span>;
+
+<span class="cmt">-- On the DESTINATION database: create a subscription</span>
+<span class="kw">CREATE SUBSCRIPTION</span> my_sub
+    <span class="kw">CONNECTION</span> <span class="str">'host=source_host dbname=myapp user=replicator password=xxx'</span>
+    <span class="kw">PUBLICATION</span> my_pub;
+
+<span class="cmt">-- Check subscription status</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">pg_stat_subscription</span>;</pre></div>
+      </div>
+
+      <div class="box box-info">
+        <div class="box-label">📌 Managed options — skip the setup pain</div>
+        In production, most teams use managed PostgreSQL: <strong>AWS RDS/Aurora</strong>, <strong>Google Cloud SQL</strong>, <strong>Supabase</strong>, <strong>Neon</strong>, or <strong>Railway</strong>. These handle replication, backups, and failover automatically. Know how replication works conceptually — but don't run your own unless you have a DBA.
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════
+         03 — BACKUP & RESTORE
+    ═══════════════════════════════════ -->
+    <section class="lesson" id="backup">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 03</span>
+        <div>
+          <div class="lesson-title">Backup & Restore</div>
+          <div class="lesson-sub">pg_dump, pg_restore, pg_basebackup — never lose data</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>Backups are only valuable if you've tested restoring from them.</strong> PostgreSQL gives you two main tools: <code>pg_dump</code> for logical backups (SQL or binary of a single database) and <code>pg_basebackup</code> for physical backups (the entire data directory). Know both. Test your restore process before you need it in an emergency.
+        </div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash — pg_dump: logical backups</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">═══ BACKUP ═══════════════════════════════════════════════════</span>
+
+<span class="cmt"># Plain SQL dump (human-readable, good for small DBs)</span>
+<span class="sh">pg_dump -U postgres -d myapp > myapp_backup.sql</span>
+
+<span class="cmt"># Custom format (compressed, allows selective restore)</span>
+<span class="sh">pg_dump -U postgres -d myapp -Fc -f myapp_backup.dump</span>
+
+<span class="cmt"># With compression level (0=none, 9=max)</span>
+<span class="sh">pg_dump -U postgres -d myapp -Fc -Z9 -f myapp_backup.dump</span>
+
+<span class="cmt"># Dump only specific tables</span>
+<span class="sh">pg_dump -U postgres -d myapp -t users -t orders -Fc -f partial.dump</span>
+
+<span class="cmt"># Dump schema only (no data)</span>
+<span class="sh">pg_dump -U postgres -d myapp --schema-only -f schema.sql</span>
+
+<span class="cmt"># Dump all databases (roles, tablespaces, all DBs)</span>
+<span class="sh">pg_dumpall -U postgres > full_cluster.sql</span>
+
+<span class="cmt">═══ RESTORE ═══════════════════════════════════════════════════</span>
+
+<span class="cmt"># Restore SQL dump</span>
+<span class="sh">psql -U postgres -d myapp < myapp_backup.sql</span>
+
+<span class="cmt"># Restore custom format (parallel restore with 4 workers = much faster)</span>
+<span class="sh">pg_restore -U postgres -d myapp -j 4 myapp_backup.dump</span>
+
+<span class="cmt"># Restore only specific tables from a dump</span>
+<span class="sh">pg_restore -U postgres -d myapp -t users myapp_backup.dump</span>
+
+<span class="cmt"># Create the target database first</span>
+<span class="sh">createdb -U postgres myapp_restored
+pg_restore -U postgres -d myapp_restored myapp_backup.dump</span></pre></div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash — Automated daily backup script</span></div>
+        <div class="code-body"><pre>
+<span class="sh">#!/bin/bash
+# Save as /usr/local/bin/pg_backup.sh — run via cron
+
+DB_NAME="myapp"
+DB_USER="postgres"
+BACKUP_DIR="/backups/postgres"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+KEEP_DAYS=30  # delete backups older than this
+
+mkdir -p "$BACKUP_DIR"
+
+# Take the backup
+pg_dump -U "$DB_USER" -Fc -Z6 "$DB_NAME" \
+    > "$BACKUP_DIR/${DB_NAME}_${TIMESTAMP}.dump"
+
+if [ $? -eq 0 ]; then
+    echo "✅ Backup succeeded: ${DB_NAME}_${TIMESTAMP}.dump"
+else
+    echo "❌ Backup FAILED!" >&2
+    exit 1
+fi
+
+# Delete old backups
+find "$BACKUP_DIR" -name "*.dump" -mtime +$KEEP_DAYS -delete
+echo "Cleaned up backups older than $KEEP_DAYS days"</span>
+
+<span class="cmt"># Add to crontab: run daily at 2am
+# crontab -e
+# 0 2 * * * /usr/local/bin/pg_backup.sh >> /var/log/pg_backup.log 2>&1</span></pre></div>
+      </div>
+
+      <h3>Point-In-Time Recovery (PITR)</h3>
+      <p>PITR lets you restore a database to any moment in the past — not just your last backup. It combines a physical base backup with WAL archive files. This is the gold standard for production databases.</p>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">conf — Enable WAL archiving for PITR</span></div>
+        <div class="code-body"><pre>
+<span class="cmt"># In postgresql.conf:</span>
+<span class="conf">archive_mode = on</span>
+<span class="conf">archive_command = 'cp %p /wal_archive/%f'</span>  <span class="cmt"># or use aws s3 cp, etc.</span>
+<span class="conf">restore_command = 'cp /wal_archive/%f %p'</span>
+
+<span class="cmt"># Take a base backup:</span>
+<span class="sh">pg_basebackup -U postgres -D /backup/base -Xs -P</span>
+
+<span class="cmt"># To restore to a specific time, create recovery.conf (or recovery params):</span>
+<span class="conf">recovery_target_time = '2024-06-01 14:30:00'</span>
+<span class="conf">recovery_target_action = 'promote'</span></pre></div>
+      </div>
+
+      <div class="box box-danger">
+        <div class="box-label">🚨 The 3-2-1 backup rule</div>
+        Keep <strong>3</strong> copies of your data, on <strong>2</strong> different storage types, with <strong>1</strong> offsite. And: <strong>test your restore every month</strong>. A backup you've never restored is a backup you can't trust.
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════
+         04 — CONFIGURATION TUNING
+    ═══════════════════════════════════ -->
+    <section class="lesson" id="tuning">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 04</span>
+        <div>
+          <div class="lesson-title">Configuration Tuning</div>
+          <div class="lesson-sub">postgresql.conf — squeeze maximum performance out of your server</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>PostgreSQL's defaults are conservative — designed to work on any hardware.</strong> On a real server with 32GB RAM, the defaults leave 95% of memory unused. Tuning <code>postgresql.conf</code> properly can make your database 3–10x faster without changing a single query. The most important settings are memory-related.
+        </div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">conf — Key settings for a 32GB RAM production server</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">═══ MEMORY ════════════════════════════════════════════════════</span>
+<span class="cmt"># shared_buffers: PostgreSQL's own page cache</span>
+<span class="cmt"># Rule: 25% of total RAM</span>
+<span class="conf">shared_buffers = 8GB</span>
+
+<span class="cmt"># work_mem: memory per sort/hash operation PER QUERY PER NODE</span>
+<span class="cmt"># Careful: 10 connections × 5 nodes × work_mem = total used</span>
+<span class="cmt"># Rule: (RAM - shared_buffers) / (max_connections × 3)</span>
+<span class="conf">work_mem = 64MB</span>
+
+<span class="cmt"># maintenance_work_mem: for VACUUM, CREATE INDEX, CLUSTER</span>
+<span class="conf">maintenance_work_mem = 2GB</span>
+
+<span class="cmt"># effective_cache_size: estimate of OS + PG cache (planner hint)</span>
+<span class="cmt"># Rule: 75% of total RAM</span>
+<span class="conf">effective_cache_size = 24GB</span>
+
+<span class="cmt">═══ CONNECTIONS ═══════════════════════════════════════════════</span>
+<span class="cmt"># Each connection uses ~5-10MB RAM. Keep this low, use PgBouncer.</span>
+<span class="conf">max_connections = 200</span>
+
+<span class="cmt">═══ WAL / CHECKPOINTS ═════════════════════════════════════════</span>
+<span class="cmt"># Larger WAL = fewer checkpoints = better write throughput</span>
+<span class="conf">wal_buffers = 64MB</span>
+<span class="conf">checkpoint_completion_target = 0.9</span>
+<span class="conf">max_wal_size = 4GB</span>
+<span class="conf">min_wal_size = 1GB</span>
+
+<span class="cmt">═══ PARALLELISM ═══════════════════════════════════════════════</span>
+<span class="cmt"># Allow queries to use multiple CPU cores</span>
+<span class="conf">max_parallel_workers_per_gather = 4</span>
+<span class="conf">max_parallel_workers = 8</span>
+<span class="conf">max_worker_processes = 16</span>
+
+<span class="cmt">═══ PLANNER ═══════════════════════════════════════════════════</span>
+<span class="cmt"># SSDs: lower these so planner prefers index scans</span>
+<span class="conf">random_page_cost = 1.1</span>    <span class="cmt"># 4.0 for HDDs, 1.1 for SSDs</span>
+<span class="conf">effective_io_concurrency = 200</span>  <span class="cmt"># SSDs handle many concurrent reads</span>
+
+<span class="cmt">═══ LOGGING (for slow query analysis) ════════════════════════</span>
+<span class="conf">log_min_duration_statement = 1000</span>  <span class="cmt"># log queries slower than 1 second</span>
+<span class="conf">log_checkpoints = on</span>
+<span class="conf">log_connections = on</span>
+<span class="conf">log_lock_waits = on</span>
+<span class="conf">log_temp_files = 0</span>  <span class="cmt"># log any query that spills to disk</span>
+
+<span class="cmt">═══ AUTOVACUUM ════════════════════════════════════════════════</span>
+<span class="cmt"># More aggressive autovacuum for busy tables</span>
+<span class="conf">autovacuum_max_workers = 5</span>
+<span class="conf">autovacuum_vacuum_cost_delay = 2ms</span>  <span class="cmt"># default 20ms — too slow for big tables</span></pre></div>
+      </div>
+
+      <div class="box box-tip">
+        <div class="box-label">💡 Use PGTune to generate settings</div>
+        Visit <strong>pgtune.leopard.in.ua</strong> — enter your server specs (RAM, CPU, storage type, DB purpose) and it generates optimal <code>postgresql.conf</code> settings for you. Use this as your starting point, then measure and adjust.
+      </div>
+
+      <h3>Reload vs Restart</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Action</th><th>Command</th><th>Needed for</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Reload</strong></td><td><code>SELECT pg_reload_conf();</code> or <code>pg_ctl reload</code></td><td>Most settings (work_mem, log_*, autovacuum)</td></tr>
+            <tr><td><strong>Restart</strong></td><td><code>systemctl restart postgresql</code></td><td>shared_buffers, max_connections, wal_level</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Check current config and pending restarts</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- See all current settings</span>
+<span class="kw">SHOW ALL</span>;
+<span class="kw">SHOW</span> shared_buffers;
+<span class="kw">SHOW</span> work_mem;
+
+<span class="cmt">-- See which settings require a restart to take effect</span>
+<span class="kw">SELECT</span> name, setting, pending_restart
+<span class="kw">FROM</span> <span class="tbl">pg_settings</span>
+<span class="kw">WHERE</span> pending_restart = <span class="kw">TRUE</span>;
+
+<span class="cmt">-- Change a setting for just this session</span>
+<span class="kw">SET</span> work_mem = <span class="str">'256MB'</span>;
+
+<span class="cmt">-- Change for a specific user permanently</span>
+<span class="kw">ALTER USER</span> myuser <span class="kw">SET</span> work_mem = <span class="str">'128MB'</span>;
+
+<span class="cmt">-- Change for a specific database permanently</span>
+<span class="kw">ALTER DATABASE</span> myapp <span class="kw">SET</span> work_mem = <span class="str">'128MB'</span>;</pre></div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════
+         05 — MONITORING
+    ═══════════════════════════════════ -->
+    <section class="lesson" id="monitoring">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 05</span>
+        <div>
+          <div class="lesson-title">Monitoring & pg_stat Views</div>
+          <div class="lesson-sub">Know what your database is doing right now — and why it's slow</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>PostgreSQL exposes rich internal statistics through system views.</strong> These are normal SQL queries that reveal everything: which queries are running right now, which tables are getting hit most, which indexes are never used, where locks are blocking, and how much data is being read from disk vs cache. Knowing these views separates seniors from juniors.
+        </div>
+      </div>
+
+      <h3>Most important monitoring queries</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Active queries and blocking locks</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- What queries are running RIGHT NOW?</span>
+<span class="kw">SELECT</span>
+    pid,
+    now() - query_start           <span class="kw">AS</span> duration,
+    state,
+    wait_event_type,
+    wait_event,
+    <span class="fn">LEFT</span>(query, <span class="num">80</span>)               <span class="kw">AS</span> query_preview,
+    client_addr,
+    application_name
+<span class="kw">FROM</span>   <span class="tbl">pg_stat_activity</span>
+<span class="kw">WHERE</span>  state != <span class="str">'idle'</span>
+<span class="kw">ORDER BY</span> duration <span class="kw">DESC</span>;
+
+<span class="cmt">-- Kill a runaway query (use with caution!)</span>
+<span class="kw">SELECT</span> <span class="fn">pg_cancel_backend</span>(<span class="num">12345</span>);   <span class="cmt">-- graceful cancel (sends SIGINT)</span>
+<span class="kw">SELECT</span> <span class="fn">pg_terminate_backend</span>(<span class="num">12345</span>); <span class="cmt">-- hard kill  (sends SIGTERM)</span>
+
+<span class="cmt">-- Who is blocking whom? (lock dependency tree)</span>
+<span class="kw">SELECT</span>
+    blocked.pid                        <span class="kw">AS</span> blocked_pid,
+    blocked_activity.query             <span class="kw">AS</span> blocked_query,
+    blocking.pid                       <span class="kw">AS</span> blocking_pid,
+    blocking_activity.query            <span class="kw">AS</span> blocking_query,
+    now() - blocked_activity.query_start <span class="kw">AS</span> blocked_duration
+<span class="kw">FROM</span>  <span class="tbl">pg_locks</span>         blocked
+<span class="kw">JOIN</span>  <span class="tbl">pg_stat_activity</span> blocked_activity  <span class="kw">ON</span> blocked_activity.pid  = blocked.pid
+<span class="kw">JOIN</span>  <span class="tbl">pg_locks</span>         blocking          <span class="kw">ON</span> blocking.transactionid = blocked.transactionid
+                                           <span class="kw">AND</span> blocking.pid != blocked.pid
+<span class="kw">JOIN</span>  <span class="tbl">pg_stat_activity</span> blocking_activity <span class="kw">ON</span> blocking_activity.pid = blocking.pid
+<span class="kw">WHERE</span> NOT blocked.granted;</pre></div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Table and index statistics</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Which tables are largest?</span>
+<span class="kw">SELECT</span>
+    schemaname,
+    relname                                       <span class="kw">AS</span> table_name,
+    <span class="fn">pg_size_pretty</span>(<span class="fn">pg_total_relation_size</span>(relid)) <span class="kw">AS</span> total_size,
+    <span class="fn">pg_size_pretty</span>(<span class="fn">pg_relation_size</span>(relid))       <span class="kw">AS</span> table_size,
+    <span class="fn">pg_size_pretty</span>(<span class="fn">pg_indexes_size</span>(relid))        <span class="kw">AS</span> indexes_size
+<span class="kw">FROM</span>   <span class="tbl">pg_stat_user_tables</span>
+<span class="kw">ORDER BY</span> <span class="fn">pg_total_relation_size</span>(relid) <span class="kw">DESC</span>
+<span class="kw">LIMIT</span>  <span class="num">20</span>;
+
+<span class="cmt">-- Which tables have the most sequential scans? (Missing indexes!)</span>
+<span class="kw">SELECT</span>
+    relname          <span class="kw">AS</span> table_name,
+    seq_scan,
+    idx_scan,
+    seq_scan - idx_scan          <span class="kw">AS</span> seq_over_idx,
+    n_live_tup                   <span class="kw">AS</span> live_rows
+<span class="kw">FROM</span>   <span class="tbl">pg_stat_user_tables</span>
+<span class="kw">WHERE</span>  seq_scan > idx_scan
+  <span class="kw">AND</span>  n_live_tup > <span class="num">10000</span>
+<span class="kw">ORDER BY</span> seq_scan <span class="kw">DESC</span>;
+
+<span class="cmt">-- Which indexes are NEVER used? (Safe to drop = saves space + write overhead)</span>
+<span class="kw">SELECT</span>
+    schemaname,
+    relname      <span class="kw">AS</span> table_name,
+    indexrelname <span class="kw">AS</span> index_name,
+    <span class="fn">pg_size_pretty</span>(<span class="fn">pg_relation_size</span>(indexrelid)) <span class="kw">AS</span> index_size,
+    idx_scan     <span class="kw">AS</span> times_used
+<span class="kw">FROM</span>   <span class="tbl">pg_stat_user_indexes</span>
+<span class="kw">JOIN</span>   <span class="tbl">pg_index</span> <span class="kw">USING</span>(indexrelid)
+<span class="kw">WHERE</span>  idx_scan = <span class="num">0</span>
+  <span class="kw">AND</span>  indisunique = <span class="kw">FALSE</span>    <span class="cmt">-- keep unique indexes (they enforce constraints)</span>
+<span class="kw">ORDER BY</span> <span class="fn">pg_relation_size</span>(indexrelid) <span class="kw">DESC</span>;</pre></div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Cache hit rate & slow queries</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Cache hit ratio — should be > 99% on a healthy system</span>
+<span class="kw">SELECT</span>
+    <span class="fn">SUM</span>(heap_blks_read)  <span class="kw">AS</span> disk_reads,
+    <span class="fn">SUM</span>(heap_blks_hit)   <span class="kw">AS</span> cache_hits,
+    <span class="fn">ROUND</span>(
+        <span class="num">100.0</span> * <span class="fn">SUM</span>(heap_blks_hit) /
+        <span class="fn">NULLIF</span>(<span class="fn">SUM</span>(heap_blks_hit) + <span class="fn">SUM</span>(heap_blks_read), <span class="num">0</span>),
+    <span class="num">2</span>) <span class="kw">AS</span> cache_hit_rate_pct
+<span class="kw">FROM</span> <span class="tbl">pg_statio_user_tables</span>;
+
+<span class="cmt">-- Slowest queries (requires pg_stat_statements extension)</span>
+<span class="kw">CREATE EXTENSION IF NOT EXISTS</span> pg_stat_statements;
+
+<span class="kw">SELECT</span>
+    <span class="fn">ROUND</span>(mean_exec_time::numeric, <span class="num">2</span>) <span class="kw">AS</span> avg_ms,
+    calls,
+    <span class="fn">ROUND</span>(total_exec_time::numeric, <span class="num">2</span>) <span class="kw">AS</span> total_ms,
+    rows,
+    <span class="fn">LEFT</span>(query, <span class="num">80</span>) <span class="kw">AS</span> query
+<span class="kw">FROM</span>   <span class="tbl">pg_stat_statements</span>
+<span class="kw">ORDER BY</span> mean_exec_time <span class="kw">DESC</span>
+<span class="kw">LIMIT</span>  <span class="num">20</span>;
+
+<span class="cmt">-- VACUUM & bloat status</span>
+<span class="kw">SELECT</span>
+    relname,
+    n_dead_tup                         <span class="kw">AS</span> dead_rows,
+    n_live_tup                         <span class="kw">AS</span> live_rows,
+    last_autovacuum,
+    last_autoanalyze
+<span class="kw">FROM</span>   <span class="tbl">pg_stat_user_tables</span>
+<span class="kw">ORDER BY</span> n_dead_tup <span class="kw">DESC</span>
+<span class="kw">LIMIT</span>  <span class="num">10</span>;
+
+<span class="cmt">-- Manually trigger VACUUM on a bloated table</span>
+<span class="kw">VACUUM ANALYZE</span> <span class="tbl">orders</span>;</pre></div>
+      </div>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>View</th><th>What it tells you</th></tr></thead>
+          <tbody>
+            <tr><td><code>pg_stat_activity</code></td><td>Currently running queries, connections, wait events</td></tr>
+            <tr><td><code>pg_stat_user_tables</code></td><td>Per-table: seq scans, index scans, dead rows, vacuum stats</td></tr>
+            <tr><td><code>pg_stat_user_indexes</code></td><td>Per-index: how many times each index has been used</td></tr>
+            <tr><td><code>pg_statio_user_tables</code></td><td>Buffer cache hits vs disk reads per table</td></tr>
+            <tr><td><code>pg_stat_replication</code></td><td>Standby lag and connection status</td></tr>
+            <tr><td><code>pg_stat_bgwriter</code></td><td>Checkpoint frequency, buffers written, I/O stats</td></tr>
+            <tr><td><code>pg_stat_statements</code></td><td>Cumulative stats per query (extension, enable first)</td></tr>
+            <tr><td><code>pg_locks</code></td><td>All active locks and what they're blocking</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════
+         06 — CONNECTION POOLING
+    ═══════════════════════════════════ -->
+    <section class="lesson" id="pooling">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 06</span>
+        <div>
+          <div class="lesson-title">Connection Pooling</div>
+          <div class="lesson-sub">Why you can't have 10,000 direct connections — and how PgBouncer fixes it</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>Every PostgreSQL connection is an OS process using 5–10MB of RAM.</strong> With 1,000 app servers each keeping 10 connections, that's 10,000 connections and 100GB of RAM just for connection overhead — before a single query runs. Connection pooling solves this: a pool sits between your app and Postgres, multiplexing many app connections onto a small number of real DB connections.
+        </div>
+      </div>
+
+      <div class="arch-diagram">
+<span class="node">  App Server 1  ──┐</span>
+<span class="node">  App Server 2  ──┤  100 connections</span>
+<span class="node">  App Server 3  ──┼────────────────▶  ┌──────────────┐     10 connections</span>
+<span class="node">  App Server 4  ──┤                   │  PgBouncer   │ ──────────────────▶  PostgreSQL</span>
+<span class="node">  App Server 5  ──┘                   └──────────────┘                       (5432)</span>
+
+<span class="note">  100 app connections → pooled → 10 real DB connections
+  PostgreSQL only sees 10 connections. App sees 100 available "connections".</span></div>
+
+      <h3>PgBouncer pooling modes</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Mode</th><th>How it works</th><th>Best for</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Session</strong></td><td>Client holds a server connection for its entire session. Least efficient.</td><td>Apps that use SET, prepared statements, temp tables</td></tr>
+            <tr><td><strong>Transaction</strong></td><td>Client gets a server connection only for one transaction. Returns it after COMMIT/ROLLBACK. <strong>Most popular.</strong></td><td>Most web apps — maximum connection reuse</td></tr>
+            <tr><td><strong>Statement</strong></td><td>Connection returned after every single statement.</td><td>Rarely used — breaks multi-statement transactions</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">conf — pgbouncer.ini configuration</span></div>
+        <div class="code-body"><pre>
+<span class="cmt"># /etc/pgbouncer/pgbouncer.ini</span>
+
+[databases]
+<span class="conf">myapp = host=127.0.0.1 port=5432 dbname=myapp</span>
+
+[pgbouncer]
+<span class="conf">listen_port = 6432</span>          <span class="cmt"># PgBouncer listens here</span>
+<span class="conf">listen_addr = 0.0.0.0</span>
+<span class="conf">auth_type = scram-sha-256</span>
+<span class="conf">auth_file = /etc/pgbouncer/userlist.txt</span>
+
+<span class="conf">pool_mode = transaction</span>     <span class="cmt"># recommended for most apps</span>
+
+<span class="conf">max_client_conn = 1000</span>      <span class="cmt"># max connections FROM apps</span>
+<span class="conf">default_pool_size = 20</span>      <span class="cmt"># max connections TO postgres per DB/user</span>
+<span class="conf">min_pool_size = 5</span>           <span class="cmt"># keep at least 5 warm connections</span>
+<span class="conf">reserve_pool_size = 5</span>       <span class="cmt"># emergency extra connections</span>
+<span class="conf">reserve_pool_timeout = 3</span>    <span class="cmt"># wait 3s before using reserve pool</span>
+
+<span class="conf">server_idle_timeout = 600</span>   <span class="cmt"># drop idle server connections after 10min</span>
+<span class="conf">client_idle_timeout = 0</span>     <span class="cmt"># 0 = never drop idle clients</span>
+
+<span class="conf">log_connections = 0</span>
+<span class="conf">log_disconnections = 0</span>
+<span class="conf">log_pooler_errors = 1</span>
+
+<span class="cmt"># userlist.txt format:</span>
+<span class="conf">"appuser" "password_here"</span></pre></div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Monitor PgBouncer from inside Postgres</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Connect to PgBouncer's admin DB</span>
+<span class="sh">psql -h 127.0.0.1 -p 6432 -U pgbouncer pgbouncer</span>
+
+<span class="cmt">-- Show pool status</span>
+SHOW POOLS;
+
+<span class="cmt">-- Show all connections</span>
+SHOW CLIENTS;
+SHOW SERVERS;
+
+<span class="cmt">-- Show stats (requests/sec, avg query time)</span>
+SHOW STATS;
+
+<span class="cmt">-- Reload config without restart</span>
+RELOAD;</pre></div>
+      </div>
+
+      <div class="box box-warn">
+        <div class="box-label">⚠️ Transaction mode limitations</div>
+        In <code>transaction</code> pool mode: <strong>no</strong> <code>SET</code> session variables that persist across transactions, <strong>no</strong> advisory locks, <strong>no</strong> <code>LISTEN/NOTIFY</code>, <strong>no</strong> named prepared statements (some drivers handle this automatically). Check your ORM's PgBouncer compatibility docs.
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════
+         07 — SECURITY HARDENING
+    ═══════════════════════════════════ -->
+    <section class="lesson" id="security">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 07</span>
+        <div>
+          <div class="lesson-title">Security Hardening</div>
+          <div class="lesson-sub">Locking down your database for production</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>The default PostgreSQL install is already fairly secure — but production needs more.</strong> The principle of least privilege: your app should only have the permissions it absolutely needs. If the app user gets compromised, the damage should be limited to the data that user can see.
+        </div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Production security setup</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">═══ USER MANAGEMENT ═══════════════════════════════════════════</span>
+
+<span class="cmt">-- Create application user with minimal permissions</span>
+<span class="kw">CREATE USER</span> app_user <span class="kw">WITH</span>
+    <span class="kw">PASSWORD</span>          <span class="str">'use-a-strong-random-password'</span>
+    <span class="kw">CONNECTION LIMIT</span>  <span class="num">50</span>     <span class="cmt">-- hard limit on connections</span>
+    NOSUPERUSER
+    NOCREATEDB
+    NOCREATEROLE;
+
+<span class="cmt">-- Grant only what the app needs</span>
+<span class="kw">GRANT CONNECT ON DATABASE</span> myapp <span class="kw">TO</span> app_user;
+<span class="kw">GRANT USAGE ON SCHEMA</span> public <span class="kw">TO</span> app_user;
+<span class="kw">GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA</span> public <span class="kw">TO</span> app_user;
+<span class="kw">GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA</span> public <span class="kw">TO</span> app_user;
+
+<span class="cmt">-- Apply to future tables too</span>
+<span class="kw">ALTER DEFAULT PRIVILEGES IN SCHEMA</span> public
+    <span class="kw">GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO</span> app_user;
+<span class="kw">ALTER DEFAULT PRIVILEGES IN SCHEMA</span> public
+    <span class="kw">GRANT USAGE, SELECT ON SEQUENCES TO</span> app_user;
+
+<span class="cmt">-- Separate read-only user for analytics/reporting</span>
+<span class="kw">CREATE USER</span> readonly_user <span class="kw">WITH PASSWORD</span> <span class="str">'another-strong-password'</span>;
+<span class="kw">GRANT CONNECT ON DATABASE</span> myapp <span class="kw">TO</span> readonly_user;
+<span class="kw">GRANT USAGE ON SCHEMA</span> public <span class="kw">TO</span> readonly_user;
+<span class="kw">GRANT SELECT ON ALL TABLES IN SCHEMA</span> public <span class="kw">TO</span> readonly_user;
+
+<span class="cmt">═══ ROW-LEVEL SECURITY (RLS) ══════════════════════════════════</span>
+
+<span class="cmt">-- Users can only see their own orders</span>
+<span class="kw">ALTER TABLE</span> <span class="tbl">orders</span> <span class="kw">ENABLE ROW LEVEL SECURITY</span>;
+
+<span class="kw">CREATE POLICY</span> orders_user_isolation <span class="kw">ON</span> <span class="tbl">orders</span>
+    <span class="kw">FOR ALL</span>
+    <span class="kw">TO</span> app_user
+    <span class="kw">USING</span> (user_id = <span class="fn">current_setting</span>(<span class="str">'app.current_user_id'</span>)::BIGINT);
+
+<span class="cmt">-- Your app sets this at the start of each request:</span>
+<span class="kw">SET</span> app.current_user_id = <span class="str">'123'</span>;
+<span class="cmt">-- Now all queries on orders automatically filter to user 123</span></pre></div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">conf — pg_hba.conf: who can connect and how</span></div>
+        <div class="code-body"><pre>
+<span class="cmt"># File: /etc/postgresql/16/main/pg_hba.conf
+# TYPE  DATABASE    USER        ADDRESS           METHOD</span>
+
+<span class="cmt"># Allow local unix socket connections for postgres superuser only</span>
+<span class="conf">local   all         postgres                      peer</span>
+
+<span class="cmt"># Allow app user from app server subnet via SCRAM (strongest auth)</span>
+<span class="conf">host    myapp       app_user    10.0.1.0/24       scram-sha-256</span>
+
+<span class="cmt"># Allow readonly user from analytics subnet</span>
+<span class="conf">host    myapp       readonly_user 10.0.2.0/24     scram-sha-256</span>
+
+<span class="cmt"># Deny everything else</span>
+<span class="conf">host    all         all         0.0.0.0/0         reject</span>
+
+<span class="cmt"># Require SSL for all remote connections (add sslmode=require in app)</span>
+<span class="conf">hostssl all         all         0.0.0.0/0         scram-sha-256</span></pre></div>
+      </div>
+
+      <div class="box box-danger">
+        <div class="box-label">🚨 Security checklist for production</div>
+        <ul style="margin-top:4px;">
+          <li>Change the <code>postgres</code> superuser password immediately after install</li>
+          <li>Never expose port 5432 to the internet — use a private network or VPN</li>
+          <li>Use <code>scram-sha-256</code> authentication, never <code>md5</code> or <code>trust</code></li>
+          <li>Enable SSL — set <code>ssl = on</code> in postgresql.conf</li>
+          <li>Rotate passwords regularly and use a secrets manager (AWS Secrets Manager, Vault)</li>
+          <li>Enable <code>log_connections</code> and <code>log_disconnections</code> for audit</li>
+          <li>Use Row Level Security for multi-tenant applications</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════
+         08 — EXTENSIONS
+    ═══════════════════════════════════ -->
+    <section class="lesson" id="extensions">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 08</span>
+        <div>
+          <div class="lesson-title">Must-Know Extensions</div>
+          <div class="lesson-sub">PostgreSQL's superpower: a rich extension ecosystem</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>PostgreSQL can be extended with C plugins that become first-class database features.</strong> Extensions add new data types, index methods, functions, and even entire subsystems. The extension ecosystem is one of the biggest advantages PostgreSQL has over every other database.
+        </div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Installing and using extensions</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Install an extension (requires superuser)</span>
+<span class="kw">CREATE EXTENSION IF NOT EXISTS</span> pg_stat_statements;
+
+<span class="cmt">-- See all installed extensions</span>
+<span class="kw">SELECT</span> name, default_version, installed_version, comment
+<span class="kw">FROM</span> pg_available_extensions
+<span class="kw">WHERE</span> installed_version <span class="kw">IS NOT NULL</span>
+<span class="kw">ORDER BY</span> name;</pre></div>
+      </div>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Extension</th><th>What it adds</th><th>Install</th></tr></thead>
+          <tbody>
+            <tr><td><strong>pg_stat_statements</strong></td><td>Track execution stats for every query — the #1 performance tool</td><td><code>CREATE EXTENSION pg_stat_statements</code></td></tr>
+            <tr><td><strong>pgcrypto</strong></td><td>Encryption functions: <code>crypt()</code>, <code>gen_salt()</code>, <code>encrypt()</code></td><td><code>CREATE EXTENSION pgcrypto</code></td></tr>
+            <tr><td><strong>uuid-ossp</strong></td><td><code>uuid_generate_v4()</code> — generate UUIDs (use <code>gen_random_uuid()</code> in PG14+)</td><td><code>CREATE EXTENSION "uuid-ossp"</code></td></tr>
+            <tr><td><strong>pg_trgm</strong></td><td>Trigram similarity — fuzzy matching, fast LIKE '%text%' with GIN index</td><td><code>CREATE EXTENSION pg_trgm</code></td></tr>
+            <tr><td><strong>PostGIS</strong></td><td>Geographic types and functions — GPS coordinates, distance, polygon queries</td><td><code>CREATE EXTENSION postgis</code></td></tr>
+            <tr><td><strong>pgvector</strong></td><td>Vector similarity search — store and search AI embeddings (LLM features)</td><td><code>CREATE EXTENSION vector</code></td></tr>
+            <tr><td><strong>timescaledb</strong></td><td>Time-series data: automatic partitioning, compression, downsampling</td><td>Separate install + <code>CREATE EXTENSION timescaledb</code></td></tr>
+            <tr><td><strong>pg_cron</strong></td><td>Schedule SQL jobs with cron syntax — right inside the database</td><td><code>CREATE EXTENSION pg_cron</code></td></tr>
+            <tr><td><strong>hstore</strong></td><td>Key-value store in a column — older alternative to JSONB</td><td><code>CREATE EXTENSION hstore</code></td></tr>
+            <tr><td><strong>citext</strong></td><td>Case-insensitive text type — <code>WHERE email = 'Alice@...'</code> just works</td><td><code>CREATE EXTENSION citext</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — pg_trgm: fast fuzzy search with LIKE '%text%'</span></div>
+        <div class="code-body"><pre>
+<span class="kw">CREATE EXTENSION</span> pg_trgm;
+
+<span class="cmt">-- Create a GIN trigram index</span>
+<span class="kw">CREATE INDEX</span> idx_products_name_trgm
+    <span class="kw">ON</span> <span class="tbl">products</span> <span class="kw">USING GIN</span>(name <span class="fn">gin_trgm_ops</span>);
+
+<span class="cmt">-- Now LIKE '%wireless%' uses the index — previously it would seq scan</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">products</span>
+<span class="kw">WHERE</span> name <span class="kw">ILIKE</span> <span class="str">'%wireless%'</span>;
+
+<span class="cmt">-- Similarity score: 0.0 (no match) to 1.0 (exact match)</span>
+<span class="kw">SELECT</span> name, <span class="fn">similarity</span>(name, <span class="str">'wireles headphone'</span>) <span class="kw">AS</span> score
+<span class="kw">FROM</span> <span class="tbl">products</span>
+<span class="kw">WHERE</span> name % <span class="str">'wireles headphone'</span>   <span class="cmt">-- % = similarity > threshold</span>
+<span class="kw">ORDER BY</span> score <span class="kw">DESC</span>;</pre></div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — pgvector: store AI embeddings</span></div>
+        <div class="code-body"><pre>
+<span class="kw">CREATE EXTENSION</span> vector;
+
+<span class="cmt">-- Store 1536-dimensional OpenAI embeddings</span>
+<span class="kw">CREATE TABLE</span> <span class="tbl">documents</span> (
+    id        <span class="typ">BIGSERIAL PRIMARY KEY</span>,
+    content   <span class="typ">TEXT</span>,
+    embedding <span class="typ">vector(1536)</span>  <span class="cmt">-- OpenAI text-embedding-ada-002</span>
+);
+
+<span class="cmt">-- Index for fast nearest-neighbour search</span>
+<span class="kw">CREATE INDEX</span> ON <span class="tbl">documents</span>
+    <span class="kw">USING ivfflat</span>(embedding vector_cosine_ops) <span class="kw">WITH</span> (lists = <span class="num">100</span>);
+
+<span class="cmt">-- Find the 5 most semantically similar documents to a query embedding</span>
+<span class="kw">SELECT</span> id, content,
+    embedding <span class="op">&lt;=&gt;</span> <span class="str">'[0.1, 0.2, ...]'</span>::vector <span class="kw">AS</span> distance
+<span class="kw">FROM</span> <span class="tbl">documents</span>
+<span class="kw">ORDER BY</span> distance
+<span class="kw">LIMIT</span> <span class="num">5</span>;</pre></div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — pg_cron: schedule jobs inside PostgreSQL</span></div>
+        <div class="code-body"><pre>
+<span class="kw">CREATE EXTENSION</span> pg_cron;
+
+<span class="cmt">-- Refresh materialized view every 15 minutes</span>
+<span class="kw">SELECT</span> <span class="fn">cron.schedule</span>(
+    <span class="str">'refresh-daily-revenue'</span>,      <span class="cmt">-- job name</span>
+    <span class="str">'*/15 * * * *'</span>,               <span class="cmt">-- every 15 minutes</span>
+    <span class="str">'REFRESH MATERIALIZED VIEW CONCURRENTLY daily_revenue'</span>
+);
+
+<span class="cmt">-- Delete old audit logs every Sunday at 3am</span>
+<span class="kw">SELECT</span> <span class="fn">cron.schedule</span>(
+    <span class="str">'cleanup-audit-log'</span>,
+    <span class="str">'0 3 * * 0'</span>,
+    <span class="str">'DELETE FROM audit_log WHERE changed_at < NOW() - INTERVAL ''90 days'''</span>
+);
+
+<span class="cmt">-- List scheduled jobs</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">cron.job</span>;
+
+<span class="cmt">-- Remove a job</span>
+<span class="kw">SELECT</span> <span class="fn">cron.unschedule</span>(<span class="str">'refresh-daily-revenue'</span>);</pre></div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════
+         09 — FINAL RECAP
+    ═══════════════════════════════════ -->
+    <section class="lesson" id="recap">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 09</span>
+        <div>
+          <div class="lesson-title">Final Recap & Your PostgreSQL Journey</div>
+          <div class="lesson-sub">Everything you've learned across all 4 parts</div>
+        </div>
+      </div>
+
+      <div class="summary">
+        <h4>✅ What you learned in Part 4</h4>
+        <ul>
+          <li>Table partitioning: RANGE by date, LIST by category, HASH for even distribution</li>
+          <li>Partition pruning — queries only scan relevant partitions for massive speed gains</li>
+          <li>Streaming replication: WAL-based primary → standby, pg_basebackup setup</li>
+          <li>Logical replication: replicate selected tables with PUBLICATION and SUBSCRIPTION</li>
+          <li>pg_dump (logical backups), pg_basebackup (physical), WAL archiving for PITR</li>
+          <li>postgresql.conf tuning: shared_buffers, work_mem, effective_cache_size, random_page_cost</li>
+          <li>pg_stat_activity — see live queries, kill runaway processes, find blocking locks</li>
+          <li>pg_stat_user_tables — find tables missing indexes (high seq_scan), dead rows, vacuum lag</li>
+          <li>pg_stat_user_indexes — find unused indexes to drop (saves disk + write overhead)</li>
+          <li>pg_stat_statements — find your slowest queries by average execution time</li>
+          <li>PgBouncer: transaction-mode pooling, 1000 app connections → 20 real DB connections</li>
+          <li>Security: least-privilege users, Row Level Security (RLS), scram-sha-256, SSL, pg_hba.conf</li>
+          <li>Extensions: pg_stat_statements, pg_trgm (fuzzy search), pgvector (AI embeddings), pg_cron</li>
+        </ul>
+      </div>
+
+      <h3>🎓 Everything you've learned across all 4 parts</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:16px;">
+        <div class="card" style="border-color:#4f86f755">
+          <h4 style="color:var(--accent)">📘 Part 1 — Foundations</h4>
+          <p>What PostgreSQL is, installation, psql CLI, architecture, databases & schemas, data types, CREATE TABLE, CRUD with RETURNING.</p>
+        </div>
+        <div class="card" style="border-color:#00c9a755">
+          <h4 style="color:var(--accent2)">🔗 Part 2 — Relationships</h4>
+          <p>Foreign keys, 1:many/many:many/1:1, JOINs (INNER, LEFT, SELF), GROUP BY, HAVING, window functions, subqueries, CTEs, indexes, EXPLAIN ANALYZE.</p>
+        </div>
+        <div class="card" style="border-color:#f7c94855">
+          <h4 style="color:var(--accent3)">⚙️ Part 3 — Advanced</h4>
+          <p>Views, materialized views, PL/pgSQL functions, stored procedures, triggers, isolation levels, JSONB operators & indexing, full-text search.</p>
+        </div>
+        <div class="card" style="border-color:#f0659555">
+          <h4 style="color:var(--accent4)">🚀 Part 4 — Production</h4>
+          <p>Partitioning, streaming & logical replication, backups & PITR, postgresql.conf tuning, pg_stat monitoring, PgBouncer, security, extensions.</p>
+        </div>
+      </div>
+
+      <!-- COMPLETION BANNER -->
+      <div class="complete-banner">
+        <div class="icon">🏆</div>
+        <h3>You've completed the PostgreSQL course!</h3>
+        <p>You started knowing nothing about PostgreSQL. You now know how to design, query, optimize, secure, and run PostgreSQL in production. That's a complete skill set that most developers never fully develop.</p>
+        <div class="cert-links">
+          <a class="cert-link primary" href="https://bjonnalagadda-dsa.github.io/dev-hub/">← Back to Dev Hub</a>
+          <a class="cert-link secondary" href="index.html">Review Part 1</a>
+          <a class="cert-link secondary" href="https://www.postgresql.org/docs/current/" target="_blank">Official Docs →</a>
+        </div>
+      </div>
+
+      <h3>📚 What to do next</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:16px;">
+        <div class="card">
+          <h4>🏋️ Practice</h4>
+          <p>pgexercises.com, LeetCode SQL (Premium), HackerRank SQL. Build a real project — a URL shortener, a blog, a job board. Nothing beats writing real SQL for real data.</p>
+        </div>
+        <div class="card">
+          <h4>📖 Deeper reading</h4>
+          <p><em>The Art of PostgreSQL</em> by Dimitri Fontaine. The official PostgreSQL docs (the best database docs ever written). <em>Use the Index, Luke</em> for deep index knowledge.</p>
+        </div>
+        <div class="card">
+          <h4>🛠️ Real tools</h4>
+          <p>Supabase (managed Postgres + auth + storage). Neon (serverless Postgres). pgAdmin 4 or TablePlus as your GUI. DataGrip for IDE-level SQL editing.</p>
+        </div>
+        <div class="card">
+          <h4>🎯 Certifications</h4>
+          <p>EDB PostgreSQL Associate or Professional certification. AWS Database Specialty cert. These prove production-level database knowledge to employers.</p>
+        </div>
+      </div>
+
+      <div class="nav-btns">
+        <a class="nav-btn" href="part3.html">← Part 3: Advanced PostgreSQL</a>
+        <a class="nav-btn primary" href="https://bjonnalagadda-dsa.github.io/dev-hub/">Back to Dev Hub 🏠</a>
+      </div>
+    </section>
+
+  </div>
+  <footer>
+    🐘 PostgreSQL Learn from Zero &nbsp;·&nbsp; Part 4 of 4 — Complete &nbsp;·&nbsp;
+    <a href="https://bjonnalagadda-dsa.github.io/dev-hub/" style="color:var(--accent)">← Back to Dev Hub</a>
+  </footer>
+</main>
+
+<script>
+  const ids = ['partitioning','replication','backup','tuning','monitoring','pooling','security','extensions','recap'];
+  const navLinks = document.querySelectorAll('.nav-link');
+  const progressFill = document.getElementById('progress');
+
+  document.querySelectorAll('.lesson').forEach(s => {
+    new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (!e.isIntersecting) return;
+        const id = e.target.id;
+        navLinks.forEach(l => l.classList.remove('active'));
+        const a = document.querySelector(`.nav-link[href="#${id}"]`);
+        if (a) a.classList.add('active');
+        const idx = ids.indexOf(id);
+        if (idx >= 0) progressFill.style.width = ((idx + 1) / ids.length * 100) + '%';
+      });
+    }, { threshold: 0.2 }).observe(s);
+  });
+
+  navLinks.forEach(l => l.addEventListener('click', () => {
+    if (window.innerWidth <= 820) document.querySelector('.sidebar').classList.remove('open');
+  }));
+</script>
+</body>
+</html>
