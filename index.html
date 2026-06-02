@@ -44,6 +44,7 @@
       text-decoration: none; transition: all 0.15s;
     }
     .sb-part.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .sb-part.done { border-color: var(--accent2); color: var(--accent2); background: #00c9a711; }
     .sb-part.locked { border-color: var(--border); color: var(--muted); cursor: default; }
     .sb-section-title { padding: 12px 18px 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 700; }
     .sidebar a.nav-link {
@@ -298,7 +299,7 @@
     <div class="sb-sub">Learn from Zero — Teacher Mode</div>
     <div class="sb-parts">
       <a class="sb-part active" href="#">Part 1</a>
-      <span class="sb-part locked">Part 2</span>
+      <a class="sb-part done" href="part2.html">Part 2</a>
       <span class="sb-part locked">Part 3</span>
       <span class="sb-part locked">Part 4</span>
     </div>
