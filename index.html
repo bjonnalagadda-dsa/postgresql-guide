@@ -1,0 +1,1521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PostgreSQL — Learn from Zero | Part 1: Foundations</title>
+  <style>
+    :root {
+      --bg: #0e1016;
+      --surface: #161b27;
+      --surface2: #1e2536;
+      --border: #2a3350;
+      --accent: #4f86f7;       /* postgres blue */
+      --accent2: #00c9a7;      /* teal */
+      --accent3: #f7c948;      /* yellow */
+      --accent4: #f06595;      /* pink */
+      --text: #e2e8f0;
+      --muted: #7a8ba8;
+      --code-bg: #0a0d14;
+      --radius: 12px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.75; font-size: 15px; }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      position: fixed; left: 0; top: 0; width: 272px; height: 100vh;
+      background: var(--surface); border-right: 1px solid var(--border);
+      overflow-y: auto; z-index: 100;
+    }
+    .sidebar::-webkit-scrollbar { width: 3px; }
+    .sidebar::-webkit-scrollbar-thumb { background: var(--border); }
+    .sb-header {
+      padding: 22px 18px 16px;
+      background: linear-gradient(135deg,#4f86f711,#00c9a708);
+      border-bottom: 1px solid var(--border);
+    }
+    .sb-logo { font-size: 18px; font-weight: 800; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+    .sb-sub { font-size: 11px; color: var(--muted); margin-top: 3px; text-transform: uppercase; letter-spacing: 1px; }
+    .sb-parts { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+    .sb-part {
+      font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; border: 1px solid;
+      text-decoration: none; transition: all 0.15s;
+    }
+    .sb-part.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .sb-part.locked { border-color: var(--border); color: var(--muted); cursor: default; }
+    .sb-section-title { padding: 12px 18px 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 700; }
+    .sidebar a.nav-link {
+      display: flex; align-items: center; gap: 8px; padding: 7px 18px;
+      color: var(--muted); text-decoration: none; font-size: 13px;
+      border-left: 2px solid transparent; transition: all 0.15s;
+    }
+    .sidebar a.nav-link:hover { color: var(--text); background: var(--surface2); border-left-color: var(--border); }
+    .sidebar a.nav-link.active { color: var(--accent); border-left-color: var(--accent); background: #4f86f70a; font-weight: 600; }
+    .nav-num { font-size: 10px; color: var(--border); font-weight: 700; min-width: 16px; }
+
+    .progress-bar { height: 3px; background: var(--border); margin: 0; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); width: 0%; transition: width 0.3s; }
+
+    /* ── MAIN ── */
+    .main { margin-left: 272px; }
+
+    /* ── HERO ── */
+    .hero {
+      padding: 72px 64px 56px; position: relative; overflow: hidden;
+      border-bottom: 1px solid var(--border);
+      background: radial-gradient(ellipse at 20% 50%, #4f86f712 0%, transparent 60%),
+                  radial-gradient(ellipse at 80% 20%, #00c9a708 0%, transparent 50%);
+    }
+    .hero-eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+    .eyebrow-badge {
+      background: #4f86f711; border: 1px solid #4f86f744; color: var(--accent);
+      padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1px;
+    }
+    .eyebrow-line { height: 1px; width: 40px; background: var(--border); }
+    .hero h1 { font-size: 48px; font-weight: 900; line-height: 1.1; letter-spacing: -1px; margin-bottom: 14px; }
+    .hero h1 .pg { color: var(--accent); }
+    .hero h1 .part { color: var(--accent3); font-size: 28px; display: block; font-weight: 700; }
+    .hero-desc { font-size: 17px; color: var(--muted); max-width: 580px; margin-bottom: 32px; line-height: 1.6; }
+    .hero-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      display: flex; align-items: center; gap: 5px; padding: 5px 12px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+      font-size: 12px; color: var(--muted);
+    }
+    .chip .dot { width: 6px; height: 6px; border-radius: 50%; }
+
+    /* ── CONTENT ── */
+    .content { padding: 0 64px 100px; }
+
+    /* Section */
+    .lesson {
+      padding: 56px 0 48px;
+      border-bottom: 1px solid var(--border);
+      animation: fadeUp 0.4s ease both;
+    }
+    .lesson:last-child { border-bottom: none; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+
+    .lesson-header { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 28px; }
+    .lesson-num {
+      font-size: 11px; font-weight: 800; color: var(--accent); background: #4f86f711;
+      border: 1px solid #4f86f733; border-radius: 8px; padding: 4px 8px;
+      text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; margin-top: 4px;
+    }
+    .lesson-title-wrap .lesson-title { font-size: 26px; font-weight: 800; line-height: 1.2; margin-bottom: 4px; }
+    .lesson-title-wrap .lesson-sub { font-size: 14px; color: var(--muted); }
+
+    /* Teacher callout */
+    .teacher {
+      display: flex; gap: 14px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px 20px; margin: 20px 0;
+    }
+    .teacher-avatar { font-size: 24px; flex-shrink: 0; }
+    .teacher-body { font-size: 14px; color: var(--muted); line-height: 1.65; }
+    .teacher-body strong { color: var(--text); }
+
+    /* Boxes */
+    .box { border-radius: var(--radius); padding: 16px 20px; margin: 16px 0; font-size: 14px; line-height: 1.6; }
+    .box-tip  { background: #00c9a70d; border: 1px solid #00c9a730; border-left: 3px solid var(--accent2); }
+    .box-warn { background: #f7c9480d; border: 1px solid #f7c94830; border-left: 3px solid var(--accent3); }
+    .box-info { background: #4f86f70d; border: 1px solid #4f86f730; border-left: 3px solid var(--accent); }
+    .box-danger { background: #f065950d; border: 1px solid #f0659530; border-left: 3px solid var(--accent4); }
+    .box-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+    .box-tip .box-label    { color: var(--accent2); }
+    .box-warn .box-label   { color: var(--accent3); }
+    .box-info .box-label   { color: var(--accent); }
+    .box-danger .box-label { color: var(--accent4); }
+
+    /* Code */
+    .code-wrap { margin: 18px 0; }
+    .code-header {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #131720; border: 1px solid var(--border); border-bottom: none;
+      border-radius: var(--radius) var(--radius) 0 0; padding: 8px 16px;
+    }
+    .code-lang { font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 6px; }
+    .code-copy {
+      font-size: 11px; color: var(--muted); cursor: pointer; background: none; border: none;
+      padding: 2px 6px; border-radius: 4px; transition: color 0.15s;
+    }
+    .code-copy:hover { color: var(--text); }
+    .code-body {
+      background: var(--code-bg); border: 1px solid var(--border); border-top: none;
+      border-radius: 0 0 var(--radius) var(--radius); padding: 18px 20px; overflow-x: auto;
+    }
+    .code-body pre { font-family: 'JetBrains Mono','Fira Code','Cascadia Code',monospace; font-size: 13.5px; line-height: 1.75; }
+    /* syntax */
+    .kw  { color: #79b8ff; font-weight: 600; }
+    .fn  { color: #b392f0; }
+    .str { color: #9ecbff; }
+    .num { color: #f97583; }
+    .cmt { color: #444d56; font-style: italic; }
+    .op  { color: #e1e4e8; }
+    .tbl { color: #f8e3a1; }
+    .typ { color: #85e89d; }
+    .dt  { color: #ffab70; }
+
+    /* Inline code */
+    code { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: 13px; color: var(--accent2); }
+
+    /* Table */
+    .tbl-wrap { overflow-x: auto; margin: 16px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    th { background: var(--surface2); padding: 10px 14px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent); border-bottom: 2px solid var(--border); font-weight: 700; }
+    td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--muted); vertical-align: top; }
+    tr:hover td { background: var(--surface); color: var(--text); }
+    td code { font-size: 12px; }
+
+    /* Comparison */
+    .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+    .compare-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+    .compare-card h4 { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .compare-card ul { list-style: none; font-size: 13px; color: var(--muted); }
+    .compare-card ul li { padding: 3px 0; display: flex; align-items: flex-start; gap: 6px; }
+    .compare-card ul li::before { content: '→'; color: var(--accent); flex-shrink: 0; }
+
+    /* Steps */
+    .steps { display: flex; flex-direction: column; gap: 0; margin: 20px 0; }
+    .step { display: flex; gap: 18px; padding-bottom: 28px; position: relative; }
+    .step:last-child { padding-bottom: 0; }
+    .step-left { display: flex; flex-direction: column; align-items: center; }
+    .step-num {
+      width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff;
+      font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .step-line { flex: 1; width: 2px; background: linear-gradient(to bottom, var(--accent), transparent); margin-top: 4px; }
+    .step:last-child .step-line { display: none; }
+    .step-body { flex: 1; }
+    .step-title { font-weight: 700; font-size: 15px; margin-bottom: 6px; color: var(--text); }
+    .step-desc { font-size: 13.5px; color: var(--muted); }
+
+    /* OS tabs */
+    .os-tabs { display: flex; gap: 4px; margin-bottom: -1px; }
+    .os-tab {
+      padding: 7px 14px; font-size: 12px; font-weight: 600; border-radius: 8px 8px 0 0;
+      border: 1px solid var(--border); border-bottom: none; background: var(--surface);
+      color: var(--muted); cursor: pointer; transition: all 0.15s;
+    }
+    .os-tab.active { background: var(--code-bg); color: var(--accent); border-color: var(--border); }
+    .os-panel { display: none; }
+    .os-panel.active { display: block; }
+
+    /* Feature grid */
+    .feat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin: 20px 0; }
+    .feat-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 18px 20px; transition: all 0.2s;
+    }
+    .feat-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 6px 24px #4f86f712; }
+    .feat-icon { font-size: 22px; margin-bottom: 10px; }
+    .feat-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+    .feat-desc { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+    /* Data type cards */
+    .dtype-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; margin: 16px 0; }
+    .dtype-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+    .dtype-card:hover { border-color: var(--accent2); }
+    .dtype-name { font-family: monospace; font-size: 13px; color: var(--accent2); font-weight: 700; margin-bottom: 4px; }
+    .dtype-desc { font-size: 12.5px; color: var(--muted); }
+    .dtype-ex { font-family: monospace; font-size: 11.5px; color: var(--accent3); margin-top: 4px; }
+    .dtype-badge { display: inline-block; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; text-transform: uppercase; margin-left: 6px; vertical-align: middle; }
+    .pg-only { background: #4f86f722; color: var(--accent); border: 1px solid #4f86f744; }
+
+    /* psql command table */
+    .psql-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; margin: 16px 0; }
+    .psql-cmd { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; display: flex; gap: 12px; align-items: flex-start; }
+    .psql-cmd code { font-size: 12.5px; background: var(--code-bg); border-color: #4f86f744; color: var(--accent); white-space: nowrap; flex-shrink: 0; }
+    .psql-info { font-size: 12.5px; color: var(--muted); }
+
+    /* Quiz */
+    .quiz { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; margin: 24px 0; }
+    .quiz-q { font-weight: 700; font-size: 15px; margin-bottom: 14px; }
+    .quiz-options { display: flex; flex-direction: column; gap: 8px; }
+    .quiz-opt {
+      padding: 10px 16px; border-radius: 8px; border: 1px solid var(--border);
+      cursor: pointer; font-size: 13.5px; color: var(--muted); transition: all 0.15s;
+      text-align: left; background: var(--bg);
+    }
+    .quiz-opt:hover { border-color: var(--accent); color: var(--text); }
+    .quiz-opt.correct { border-color: var(--accent2); background: #00c9a710; color: var(--accent2); }
+    .quiz-opt.wrong { border-color: var(--accent4); background: #f0659510; color: var(--accent4); }
+    .quiz-explain { margin-top: 12px; font-size: 13px; color: var(--muted); display: none; }
+    .quiz-explain.show { display: block; }
+
+    /* Nav arrows */
+    .lesson-nav { display: flex; justify-content: space-between; align-items: center; padding: 24px 0 0; border-top: 1px solid var(--border); margin-top: 20px; }
+    .nav-btn {
+      display: flex; align-items: center; gap: 6px; padding: 9px 18px;
+      border-radius: 8px; border: 1px solid var(--border); background: var(--surface);
+      color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; transition: all 0.15s;
+    }
+    .nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .nav-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .nav-btn.primary:hover { opacity: 0.88; }
+
+    /* Summary box */
+    .summary { background: linear-gradient(135deg, #4f86f710, #00c9a708); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin: 24px 0; }
+    .summary h4 { font-size: 15px; font-weight: 800; color: var(--accent2); margin-bottom: 12px; }
+    .summary ul { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    .summary ul li { font-size: 13.5px; color: var(--muted); display: flex; align-items: flex-start; gap: 8px; }
+    .summary ul li::before { content: '✓'; color: var(--accent2); font-weight: 700; flex-shrink: 0; }
+
+    /* Footer */
+    footer { text-align: center; padding: 32px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
+
+    /* Mobile */
+    .hamburger { display: none; position: fixed; top: 14px; left: 14px; z-index: 200; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; cursor: pointer; font-size: 16px; }
+    @media (max-width: 820px) {
+      .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
+      .sidebar.open { transform: translateX(0); }
+      .main { margin-left: 0; }
+      .hero { padding: 56px 24px 40px; }
+      .hero h1 { font-size: 32px; }
+      .content { padding: 0 24px 80px; }
+      .hamburger { display: block; }
+      .compare { grid-template-columns: 1fr; }
+    }
+
+    p { color: var(--muted); margin: 10px 0; font-size: 14.5px; line-height: 1.75; }
+    h3 { font-size: 18px; font-weight: 700; color: var(--text); margin: 24px 0 10px; }
+    h4 { font-size: 15px; font-weight: 700; color: var(--text); margin: 18px 0 8px; }
+    strong { color: var(--text); }
+    ul, ol { padding-left: 20px; color: var(--muted); font-size: 14.5px; line-height: 1.8; }
+    li { margin: 3px 0; }
+  </style>
+</head>
+<body>
+
+<button class="hamburger" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+
+<!-- ── SIDEBAR ── -->
+<aside class="sidebar">
+  <div class="sb-header">
+    <div class="sb-logo">🐘 PostgreSQL</div>
+    <div class="sb-sub">Learn from Zero — Teacher Mode</div>
+    <div class="sb-parts">
+      <a class="sb-part active" href="#">Part 1</a>
+      <span class="sb-part locked">Part 2</span>
+      <span class="sb-part locked">Part 3</span>
+      <span class="sb-part locked">Part 4</span>
+    </div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+
+  <div class="sb-section-title">Part 1 — Foundations</div>
+  <a class="nav-link active" href="#what-is-pg"><span class="nav-num">01</span> What is PostgreSQL?</a>
+  <a class="nav-link" href="#why-pg"><span class="nav-num">02</span> Why PostgreSQL?</a>
+  <a class="nav-link" href="#install"><span class="nav-num">03</span> Installation</a>
+  <a class="nav-link" href="#psql"><span class="nav-num">04</span> psql — The CLI</a>
+  <a class="nav-link" href="#architecture"><span class="nav-num">05</span> How PostgreSQL Works</a>
+  <a class="nav-link" href="#databases"><span class="nav-num">06</span> Databases & Schemas</a>
+  <a class="nav-link" href="#datatypes"><span class="nav-num">07</span> Data Types</a>
+  <a class="nav-link" href="#first-table"><span class="nav-num">08</span> Your First Table</a>
+  <a class="nav-link" href="#crud"><span class="nav-num">09</span> CRUD Operations</a>
+  <a class="nav-link" href="#recap"><span class="nav-num">10</span> Recap & What's Next</a>
+</aside>
+
+<!-- ── MAIN ── -->
+<main class="main">
+
+  <!-- HERO -->
+  <div class="hero" id="top">
+    <div class="hero-eyebrow">
+      <span class="eyebrow-badge">Part 1 of 4 — Foundations</span>
+      <span class="eyebrow-line"></span>
+    </div>
+    <h1>
+      <span class="part">🐘 PostgreSQL —</span>
+      Learn it <span class="pg">the right way</span>
+    </h1>
+    <p class="hero-desc">
+      You know zero PostgreSQL right now. By the end of Part 1, you'll have it installed, running, and you'll have created real tables, inserted real data, and queried it — all from scratch. No fluff, no skipping steps.
+    </p>
+    <div class="hero-chips">
+      <span class="chip"><span class="dot" style="background:#4f86f7"></span>~45 min read</span>
+      <span class="chip"><span class="dot" style="background:#00c9a7"></span>10 lessons</span>
+      <span class="chip"><span class="dot" style="background:#f7c948"></span>Absolute beginner</span>
+      <span class="chip"><span class="dot" style="background:#f06595"></span>Hands-on examples</span>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ══ LESSON 01 ══ -->
+    <section class="lesson" id="what-is-pg">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 01</span>
+        <div class="lesson-title-wrap">
+          <div class="lesson-title">What is PostgreSQL?</div>
+          <div class="lesson-sub">Understanding what you're about to learn and why it matters</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>Think of a database like a filing cabinet.</strong> Inside the cabinet are folders (tables). Each folder has papers (rows) with info written in labeled sections (columns). PostgreSQL is the smartest, most powerful filing cabinet you can get — and it's completely free.
+        </div>
+      </div>
+
+      <p>PostgreSQL (pronounced <strong>post-gress-Q-L</strong>, often just called <strong>Postgres</strong>) is an open-source <strong>relational database management system (RDBMS)</strong>. It stores data in tables that relate to each other — just like a spreadsheet, but far more powerful.</p>
+
+      <p>It was born at UC Berkeley in 1986 as POSTGRES, went open-source in 1994, and has been battle-tested for nearly 40 years. Today it powers companies like Instagram, Twitch, Spotify, Reddit, and GitHub.</p>
+
+      <h3>What does PostgreSQL actually do?</h3>
+      <div class="feat-grid">
+        <div class="feat-card">
+          <div class="feat-icon">📦</div>
+          <div class="feat-title">Stores data reliably</div>
+          <div class="feat-desc">Keeps your data safe on disk, even during crashes, thanks to Write-Ahead Logging (WAL).</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-icon">🔍</div>
+          <div class="feat-title">Answers questions fast</div>
+          <div class="feat-desc">You ask "give me all users who signed up this month" and Postgres returns the answer in milliseconds.</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-icon">🔒</div>
+          <div class="feat-title">Controls who sees what</div>
+          <div class="feat-desc">Roles and permissions let you decide which users or apps can read, write, or delete data.</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-icon">🔗</div>
+          <div class="feat-title">Links related data</div>
+          <div class="feat-desc">A user row can link to many order rows. Postgres enforces these links so you can't accidentally orphan data.</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-icon">⚡</div>
+          <div class="feat-title">Handles millions of rows</div>
+          <div class="feat-desc">With the right indexes, Postgres searches a table of 100 million rows in milliseconds.</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-icon">🧩</div>
+          <div class="feat-title">Stores any kind of data</div>
+          <div class="feat-desc">Text, numbers, dates, JSON, arrays, geo coordinates, images — Postgres handles it all natively.</div>
+        </div>
+      </div>
+
+      <div class="box box-info">
+        <div class="box-label">📌 Key Term</div>
+        A <strong>relational database</strong> stores data in tables (like spreadsheets) where tables can reference each other. You interact with it using SQL — Structured Query Language.
+      </div>
+    </section>
+
+    <!-- ══ LESSON 02 ══ -->
+    <section class="lesson" id="why-pg">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 02</span>
+        <div class="lesson-title-wrap">
+          <div class="lesson-title">Why PostgreSQL?</div>
+          <div class="lesson-sub">How it compares to MySQL, SQLite, and NoSQL</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>You'll hear about MySQL, MongoDB, SQLite — here's how to think about the choice.</strong> Most professional backend developers use PostgreSQL as their go-to because it's the most featureful SQL database that's also free. SQLite is for tiny projects. MySQL is older and less capable. MongoDB is for when your data has no structure at all.
+        </div>
+      </div>
+
+      <div class="compare">
+        <div class="compare-card">
+          <h4>🐘 PostgreSQL — Choose when...</h4>
+          <ul>
+            <li>Building a real app (API, web app, SaaS)</li>
+            <li>You need JSON + SQL in the same place</li>
+            <li>You want advanced features (window fns, CTEs)</li>
+            <li>Correctness and data integrity matter</li>
+            <li>You want full ACID compliance</li>
+          </ul>
+        </div>
+        <div class="compare-card">
+          <h4>🦈 MySQL — Choose when...</h4>
+          <ul>
+            <li>You're maintaining a legacy app</li>
+            <li>WordPress / PHP stack (it was default)</li>
+            <li>Simple read-heavy workloads</li>
+            <li>Less true ACID compliance (old versions)</li>
+          </ul>
+        </div>
+        <div class="compare-card">
+          <h4>🪶 SQLite — Choose when...</h4>
+          <ul>
+            <li>Mobile apps, embedded systems</li>
+            <li>Local dev, testing, prototyping</li>
+            <li>No server needed (single file on disk)</li>
+            <li>Very low concurrency requirements</li>
+          </ul>
+        </div>
+        <div class="compare-card">
+          <h4>🍃 MongoDB — Choose when...</h4>
+          <ul>
+            <li>Data is truly schema-less and varies wildly</li>
+            <li>Storing documents, not rows</li>
+            <li>Sacrificing relations for scale (rare)</li>
+            <li>Note: Postgres JSON is often good enough</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>PostgreSQL's Superpowers</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Feature</th><th>What it means</th><th>MySQL has it?</th></tr></thead>
+          <tbody>
+            <tr><td><strong>JSONB</strong></td><td>Store and query JSON like a document database</td><td>Partial</td></tr>
+            <tr><td><strong>Window Functions</strong></td><td>Rank, running totals, lag/lead without subqueries</td><td>Yes (v8+)</td></tr>
+            <tr><td><strong>Full-Text Search</strong></td><td>Built-in search engine, no Elasticsearch needed</td><td>Basic only</td></tr>
+            <tr><td><strong>Arrays</strong></td><td>Store multiple values in a single column</td><td>No</td></tr>
+            <tr><td><strong>Partial Indexes</strong></td><td>Index only rows matching a condition</td><td>No</td></tr>
+            <tr><td><strong>Table Inheritance</strong></td><td>OOP-style table hierarchies</td><td>No</td></tr>
+            <tr><td><strong>PostGIS</strong></td><td>Geo-spatial queries (distance, polygons, maps)</td><td>No</td></tr>
+            <tr><td><strong>True ACID</strong></td><td>Full transaction guarantees always on</td><td>Depends on engine</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="box box-tip">
+        <div class="box-label">💡 Bottom line</div>
+        If you're learning one database for backend development, PostgreSQL is the right answer. It will be relevant at every company you ever work at.
+      </div>
+    </section>
+
+    <!-- ══ LESSON 03 ══ -->
+    <section class="lesson" id="install">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 03</span>
+        <div class="lesson-title-wrap">
+          <div class="lesson-title">Installation</div>
+          <div class="lesson-sub">Get PostgreSQL running on your machine in under 5 minutes</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>We're going to install PostgreSQL and confirm it's running before moving on.</strong> Don't skip this — everything else requires a working installation. Pick your operating system below.
+        </div>
+      </div>
+
+      <div class="os-tabs">
+        <button class="os-tab active" onclick="switchOS('mac', this)">🍎 macOS</button>
+        <button class="os-tab" onclick="switchOS('linux', this)">🐧 Linux (Ubuntu)</button>
+        <button class="os-tab" onclick="switchOS('win', this)">🪟 Windows</button>
+      </div>
+
+      <!-- macOS -->
+      <div class="os-panel active" id="os-mac">
+        <div class="code-wrap">
+          <div class="code-header"><span class="code-lang">🍺 Homebrew (Recommended)</span></div>
+          <div class="code-body"><pre>
+<span class="cmt"># Install Homebrew first if you don't have it</span>
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+<span class="cmt"># Install PostgreSQL</span>
+brew install postgresql@16
+
+<span class="cmt"># Add to PATH (copy/paste the line brew tells you, or run this)</span>
+echo 'export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+<span class="cmt"># Start PostgreSQL as a background service</span>
+brew services start postgresql@16
+
+<span class="cmt"># Verify it's running</span>
+pg_isready</pre></div>
+        </div>
+        <div class="box box-tip">
+          <div class="box-label">✅ Success looks like</div>
+          <code>/tmp/.s.PGSQL.5432 - accepting connections</code> — that means Postgres is live on port 5432.
+        </div>
+      </div>
+
+      <!-- Linux -->
+      <div class="os-panel" id="os-linux">
+        <div class="code-wrap">
+          <div class="code-header"><span class="code-lang">🐧 Ubuntu / Debian</span></div>
+          <div class="code-body"><pre>
+<span class="cmt"># Update package list</span>
+sudo apt update
+
+<span class="cmt"># Install PostgreSQL</span>
+sudo apt install -y postgresql postgresql-contrib
+
+<span class="cmt"># Start and enable the service</span>
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+
+<span class="cmt"># Check status</span>
+sudo systemctl status postgresql
+
+<span class="cmt"># Connect as the default postgres superuser</span>
+sudo -u postgres psql</pre></div>
+        </div>
+      </div>
+
+      <!-- Windows -->
+      <div class="os-panel" id="os-win">
+        <div class="code-wrap">
+          <div class="code-header"><span class="code-lang">🪟 Windows</span></div>
+          <div class="code-body"><pre>
+<span class="cmt"># Option 1: Official installer (easiest)</span>
+<span class="cmt"># Download from: https://www.postgresql.org/download/windows/</span>
+<span class="cmt"># Run the installer, pick a password for postgres user, default port 5432</span>
+
+<span class="cmt"># Option 2: WSL2 (recommended for developers)</span>
+<span class="cmt"># Install WSL2, then follow the Linux steps above</span>
+
+<span class="cmt"># After install, open "SQL Shell (psql)" from Start menu</span>
+<span class="cmt"># Or add PostgreSQL\bin to your PATH and run:</span>
+psql -U postgres</pre></div>
+        </div>
+      </div>
+
+      <h3>Connecting for the first time</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">bash — First connection</span></div>
+        <div class="code-body"><pre>
+<span class="cmt"># On macOS (Homebrew): your username is the default superuser</span>
+psql postgres
+
+<span class="cmt"># On Linux / Windows: connect as the postgres superuser</span>
+psql -U postgres
+
+<span class="cmt"># Connect to a specific database on a specific host</span>
+psql -h localhost -p 5432 -U myuser -d mydb
+
+<span class="cmt"># If successful, you'll see the psql prompt:</span>
+<span class="cmt"># postgres=#</span></pre></div>
+      </div>
+
+      <div class="box box-warn">
+        <div class="box-label">⚠️ Common issue — "command not found: psql"</div>
+        PostgreSQL's bin directory isn't in your PATH. On macOS with Homebrew: run <code>brew link postgresql@16</code> or add it manually to your PATH in <code>~/.zshrc</code>.
+      </div>
+
+      <h3>GUI Tools (Optional but handy)</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Tool</th><th>Best for</th><th>Free?</th></tr></thead>
+          <tbody>
+            <tr><td><strong>pgAdmin 4</strong></td><td>Official GUI, full feature set</td><td>✅ Yes</td></tr>
+            <tr><td><strong>TablePlus</strong></td><td>Beautiful, fast, multi-DB support</td><td>Freemium</td></tr>
+            <tr><td><strong>DBeaver</strong></td><td>Open source, supports every DB</td><td>✅ Yes</td></tr>
+            <tr><td><strong>VS Code + SQLTools</strong></td><td>Stay in your editor</td><td>✅ Yes</td></tr>
+            <tr><td><strong>DataGrip</strong></td><td>JetBrains IDE for databases</td><td>Paid</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="box box-info">
+        <div class="box-label">📌 Recommendation</div>
+        <strong>Learn the CLI (psql) first.</strong> It makes you understand what's happening. Once comfortable, use TablePlus or pgAdmin for visual exploration.
+      </div>
+    </section>
+
+    <!-- ══ LESSON 04 ══ -->
+    <section class="lesson" id="psql">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 04</span>
+        <div class="lesson-title-wrap">
+          <div class="lesson-title">psql — The Command-Line Interface</div>
+          <div class="lesson-sub">Master the terminal tool every PostgreSQL user needs to know</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>psql is your direct line to PostgreSQL.</strong> Think of it as a conversation — you type a SQL question, Postgres gives you an answer. Every database professional uses psql. The backslash commands (<code>\d</code>, <code>\l</code>, etc.) are psql-specific shortcuts that don't end with a semicolon.
+        </div>
+      </div>
+
+      <h3>Essential psql Commands</h3>
+      <div class="psql-grid">
+        <div class="psql-cmd"><code>\l</code><span class="psql-info">List all databases</span></div>
+        <div class="psql-cmd"><code>\c dbname</code><span class="psql-info">Connect to a database</span></div>
+        <div class="psql-cmd"><code>\dt</code><span class="psql-info">List all tables in current DB</span></div>
+        <div class="psql-cmd"><code>\d tablename</code><span class="psql-info">Describe a table's structure</span></div>
+        <div class="psql-cmd"><code>\dn</code><span class="psql-info">List all schemas</span></div>
+        <div class="psql-cmd"><code>\du</code><span class="psql-info">List all users/roles</span></div>
+        <div class="psql-cmd"><code>\i file.sql</code><span class="psql-info">Execute a SQL file</span></div>
+        <div class="psql-cmd"><code>\e</code><span class="psql-info">Open query in text editor</span></div>
+        <div class="psql-cmd"><code>\timing</code><span class="psql-info">Show query execution time</span></div>
+        <div class="psql-cmd"><code>\x</code><span class="psql-info">Toggle expanded (vertical) output</span></div>
+        <div class="psql-cmd"><code>\?</code><span class="psql-info">Help for psql commands</span></div>
+        <div class="psql-cmd"><code>\h SELECT</code><span class="psql-info">SQL command help</span></div>
+        <div class="psql-cmd"><code>\q</code><span class="psql-info">Quit psql</span></div>
+        <div class="psql-cmd"><code>↑ ↓</code><span class="psql-info">Navigate command history</span></div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">psql — A real session walkthrough</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- You just connected. The prompt shows you're in the "postgres" database</span>
+postgres=#
+
+<span class="cmt">-- List all databases</span>
+postgres=# \l
+<span class="cmt">--  Name    |  Owner   | Encoding | ...
+-- ---------+----------+----------+----
+--  postgres | postgres | UTF8     | ...
+--  template0| postgres | UTF8     | ...</span>
+
+<span class="cmt">-- Create a new database and connect to it</span>
+postgres=# <span class="kw">CREATE DATABASE</span> myapp;
+CREATE DATABASE
+postgres=# \c myapp
+<span class="cmt">-- You are now connected to database "myapp" as user "postgres".</span>
+myapp=#
+
+<span class="cmt">-- Check what tables exist (none yet)</span>
+myapp=# \dt
+<span class="cmt">-- Did not find any relations.</span>
+
+<span class="cmt">-- Try \x for nicer output on wide tables</span>
+myapp=# \x
+<span class="cmt">-- Expanded display is on.</span></pre></div>
+      </div>
+
+      <div class="box box-warn">
+        <div class="box-label">⚠️ Don't forget the semicolon!</div>
+        SQL queries in psql MUST end with <code>;</code>. If you hit Enter without one, psql waits for more input (the prompt changes to <code>-#</code>). Just type <code>;</code> and hit Enter to finish, or <code>\q</code> to cancel.
+      </div>
+
+      <h3>Useful psql tricks</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">psql — Power user tips</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Run a single query from the shell without entering psql</span>
+psql -U postgres -d myapp -c "SELECT version();"
+
+<span class="cmt">-- Run a SQL file</span>
+psql -U postgres -d myapp -f setup.sql
+
+<span class="cmt">-- Output query results to a CSV file</span>
+psql -U postgres -d myapp -c "\copy users TO 'users.csv' CSV HEADER"
+
+<span class="cmt">-- Check what version of Postgres is installed</span>
+postgres=# SELECT version();
+<span class="cmt">-- PostgreSQL 16.2 on aarch64-apple-darwin...</span>
+
+<span class="cmt">-- See current connection info</span>
+postgres=# \conninfo
+<span class="cmt">-- You are connected to database "postgres" as user "postgres" via socket...</span></pre></div>
+      </div>
+    </section>
+
+    <!-- ══ LESSON 05 ══ -->
+    <section class="lesson" id="architecture">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 05</span>
+        <div class="lesson-title-wrap">
+          <div class="lesson-title">How PostgreSQL Works Internally</div>
+          <div class="lesson-sub">A mental model that will help you debug and optimize</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>You don't need to memorize this, but you DO need a mental model.</strong> When you understand how Postgres processes a query, you'll know why indexes matter, why certain queries are slow, and how to fix them. This pays dividends for your whole career.
+        </div>
+      </div>
+
+      <h3>The journey of a query</h3>
+      <div class="steps">
+        <div class="step">
+          <div class="step-left"><div class="step-num">1</div><div class="step-line"></div></div>
+          <div class="step-body">
+            <div class="step-title">Client sends a query</div>
+            <div class="step-desc">Your app (or psql) sends SQL text like <code>SELECT * FROM users WHERE id = 5</code> over a TCP connection to the Postgres server on port 5432.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left"><div class="step-num">2</div><div class="step-line"></div></div>
+          <div class="step-body">
+            <div class="step-title">Parser — checks syntax</div>
+            <div class="step-desc">Postgres parses your SQL into a parse tree. If you have a typo or missing keyword, it errors here: <em>"syntax error at or near..."</em></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left"><div class="step-num">3</div><div class="step-line"></div></div>
+          <div class="step-body">
+            <div class="step-title">Rewriter — applies rules</div>
+            <div class="step-desc">Transforms the query. For example, a VIEW reference gets expanded into its underlying SELECT statement here.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left"><div class="step-num">4</div><div class="step-line"></div></div>
+          <div class="step-body">
+            <div class="step-title">Planner / Optimizer — chooses the best plan</div>
+            <div class="step-desc">The most important step. Postgres estimates many ways to fetch the data (sequential scan vs. index scan vs. hash join) and picks the cheapest one. This is what <code>EXPLAIN</code> shows you.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left"><div class="step-num">5</div><div class="step-line"></div></div>
+          <div class="step-body">
+            <div class="step-title">Executor — runs the plan</div>
+            <div class="step-desc">Fetches rows from disk (or the shared buffer cache), applies filters, sorts, and returns results to the client.</div>
+          </div>
+        </div>
+      </div>
+
+      <h3>Key architectural concepts</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Concept</th><th>Plain English</th><th>Why you care</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Shared Buffers</strong></td><td>RAM cache for frequently-used data pages</td><td>Reads from RAM are ~1000x faster than disk</td></tr>
+            <tr><td><strong>WAL (Write-Ahead Log)</strong></td><td>Every change is logged to disk before it's applied</td><td>Crash safety + replication</td></tr>
+            <tr><td><strong>MVCC</strong></td><td>Multiple readers never block writers (each gets their own "snapshot")</td><td>High concurrency without locks</td></tr>
+            <tr><td><strong>Vacuuming</strong></td><td>Background cleanup of old row versions</td><td>Prevents table bloat over time</td></tr>
+            <tr><td><strong>pg_hba.conf</strong></td><td>Controls who can connect and how</td><td>Security configuration</td></tr>
+            <tr><td><strong>postgresql.conf</strong></td><td>Main config file (memory, connections, logging)</td><td>Performance tuning</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="box box-info">
+        <div class="box-label">📌 MVCC — Multi-Version Concurrency Control</div>
+        When you read a row and someone else is updating it at the same time, you see the <em>old</em> version, they write the new version. No lock needed. This is why Postgres handles many simultaneous users so well.
+      </div>
+    </section>
+
+    <!-- ══ LESSON 06 ══ -->
+    <section class="lesson" id="databases">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 06</span>
+        <div class="lesson-title-wrap">
+          <div class="lesson-title">Databases, Schemas & Users</div>
+          <div class="lesson-sub">The hierarchy of organization in PostgreSQL</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>Here's the hierarchy:</strong> One PostgreSQL server can have many <em>databases</em>. Each database has many <em>schemas</em>. Each schema has many <em>tables</em>. Think of it like: building → floors → rooms → furniture.
+        </div>
+      </div>
+
+      <h3>The hierarchy</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">Structure</span></div>
+        <div class="code-body"><pre>
+PostgreSQL Server (port 5432)
+├── Database: myapp
+│   ├── Schema: public        ← default schema
+│   │   ├── Table: users
+│   │   ├── Table: orders
+│   │   └── Table: products
+│   └── Schema: analytics
+│       ├── Table: events
+│       └── Table: funnels
+├── Database: myapp_test
+│   └── Schema: public
+│       └── (test tables)
+└── Database: postgres        ← default system database</pre></div>
+      </div>
+
+      <h3>Creating and managing databases</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Database commands</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Create a database</span>
+<span class="kw">CREATE DATABASE</span> myapp;
+
+<span class="cmt">-- Create with specific settings</span>
+<span class="kw">CREATE DATABASE</span> myapp
+    <span class="kw">OWNER</span> = postgres
+    <span class="kw">ENCODING</span> = <span class="str">'UTF8'</span>
+    <span class="kw">LC_COLLATE</span> = <span class="str">'en_US.UTF-8'</span>
+    <span class="kw">LC_CTYPE</span> = <span class="str">'en_US.UTF-8'</span>;
+
+<span class="cmt">-- List all databases</span>
+\l    <span class="cmt">-- psql shortcut</span>
+<span class="kw">SELECT</span> datname <span class="kw">FROM</span> <span class="tbl">pg_database</span>;  <span class="cmt">-- SQL way</span>
+
+<span class="cmt">-- Switch to a database (psql only)</span>
+\c myapp
+
+<span class="cmt">-- Rename a database</span>
+<span class="kw">ALTER DATABASE</span> myapp <span class="kw">RENAME TO</span> myapp_v2;
+
+<span class="cmt">-- Delete a database (CAREFUL: drops everything inside)</span>
+<span class="kw">DROP DATABASE</span> myapp;
+<span class="kw">DROP DATABASE IF EXISTS</span> myapp;  <span class="cmt">-- safe version</span></pre></div>
+      </div>
+
+      <h3>Schemas</h3>
+      <p>A schema is a namespace inside a database. By default, everything goes into the <code>public</code> schema. Use schemas to separate concerns — e.g., <code>app</code> schema for business tables, <code>analytics</code> for reporting tables.</p>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Schema commands</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Create a schema</span>
+<span class="kw">CREATE SCHEMA</span> analytics;
+<span class="kw">CREATE SCHEMA IF NOT EXISTS</span> analytics;
+
+<span class="cmt">-- Create a table in a specific schema</span>
+<span class="kw">CREATE TABLE</span> <span class="tbl">analytics.events</span> (
+    id   <span class="typ">SERIAL PRIMARY KEY</span>,
+    name <span class="typ">VARCHAR(100)</span>
+);
+
+<span class="cmt">-- The search_path controls which schema is the default</span>
+<span class="kw">SET</span> search_path <span class="kw">TO</span> analytics, public;
+
+<span class="cmt">-- List schemas</span>
+\dn</pre></div>
+      </div>
+
+      <h3>Creating users and roles</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Users & Roles</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Create a user (a role that can log in)</span>
+<span class="kw">CREATE USER</span> appuser <span class="kw">WITH PASSWORD</span> <span class="str">'securepassword123'</span>;
+
+<span class="cmt">-- Grant all privileges on a database</span>
+<span class="kw">GRANT ALL PRIVILEGES ON DATABASE</span> myapp <span class="kw">TO</span> appuser;
+
+<span class="cmt">-- Grant access to a schema</span>
+<span class="kw">GRANT USAGE ON SCHEMA</span> public <span class="kw">TO</span> appuser;
+
+<span class="cmt">-- Grant SELECT/INSERT/UPDATE/DELETE on all current tables</span>
+<span class="kw">GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA</span> public <span class="kw">TO</span> appuser;
+
+<span class="cmt">-- Grant privileges on future tables too (important!)</span>
+<span class="kw">ALTER DEFAULT PRIVILEGES IN SCHEMA</span> public
+<span class="kw">GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO</span> appuser;
+
+<span class="cmt">-- Make a read-only user</span>
+<span class="kw">CREATE USER</span> readonly_user <span class="kw">WITH PASSWORD</span> <span class="str">'readonlypass'</span>;
+<span class="kw">GRANT CONNECT ON DATABASE</span> myapp <span class="kw">TO</span> readonly_user;
+<span class="kw">GRANT USAGE ON SCHEMA</span> public <span class="kw">TO</span> readonly_user;
+<span class="kw">GRANT SELECT ON ALL TABLES IN SCHEMA</span> public <span class="kw">TO</span> readonly_user;</pre></div>
+      </div>
+
+      <div class="box box-warn">
+        <div class="box-label">⚠️ Security Best Practice</div>
+        Never use the <code>postgres</code> superuser in your application. Create a dedicated user with only the permissions your app needs. If that user gets compromised, the damage is limited.
+      </div>
+    </section>
+
+    <!-- ══ LESSON 07 ══ -->
+    <section class="lesson" id="datatypes">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 07</span>
+        <div class="lesson-title-wrap">
+          <div class="lesson-title">PostgreSQL Data Types</div>
+          <div class="lesson-sub">PostgreSQL has the richest type system of any SQL database — know what to use</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>Choosing the right data type matters for two reasons: correctness and performance.</strong> A column storing prices should be <code>NUMERIC</code>, not <code>FLOAT</code> (floats have rounding errors — never use them for money). A column storing a user's ID should be <code>INTEGER</code> or <code>BIGINT</code>, not <code>VARCHAR</code>.
+        </div>
+      </div>
+
+      <h3>Numeric Types</h3>
+      <div class="dtype-grid">
+        <div class="dtype-card">
+          <div class="dtype-name">SMALLINT</div>
+          <div class="dtype-desc">Whole number. Range: –32,768 to 32,767. Use for small counters, ages, ratings.</div>
+          <div class="dtype-ex">age SMALLINT</div>
+        </div>
+        <div class="dtype-card">
+          <div class="dtype-name">INTEGER / INT</div>
+          <div class="dtype-desc">Whole number. Range: –2.1B to 2.1B. The most common numeric type.</div>
+          <div class="dtype-ex">quantity INT</div>
+        </div>
+        <div class="dtype-card">
+          <div class="dtype-name">BIGINT</div>
+          <div class="dtype-desc">Whole number. Range: ±9.2 quintillion. Use for user IDs, counts that could get huge.</div>
+          <div class="dtype-ex">user_id BIGINT</div>
+        </div>
+        <div class="dtype-card">
+          <div class="dtype-name">NUMERIC(p, s) / DECIMAL</div>
+          <div class="dtype-desc">Exact decimal. <strong>Always use this for money.</strong> p = total digits, s = decimal places.</div>
+          <div class="dtype-ex">price NUMERIC(10, 2) → 99999999.99</div>
+        </div>
+        <div class="dtype-card">
+          <div class="dtype-name">REAL / FLOAT4</div>
+          <div class="dtype-desc">Approximate float, 6 decimal digits. Use for scientific data — NOT money.</div>
+          <div class="dtype-ex">temperature REAL</div>
+        </div>
+        <div class="dtype-card">
+          <div class="dtype-name">DOUBLE PRECISION / FLOAT8</div>
+          <div class="dtype-desc">Approximate float, 15 decimal digits. More precise than REAL but still not exact.</div>
+          <div class="dtype-ex">latitude DOUBLE PRECISION</div>
+        </div>
+        <div class="dtype-card">
+          <div class="dtype-name">SERIAL <span class="dtype-badge pg-only">PG</span></div>
+          <div class="dtype-desc">Auto-incrementing integer (1, 2, 3…). Shorthand for creating a sequence. Use for primary keys.</div>
+          <div class="dtype-ex">id SERIAL PRIMARY KEY</div>
+        </div>
+        <div class="dtype-card">
+          <div class="dtype-name">BIGSERIAL <span class="dtype-badge pg-only">PG</span></div>
+          <div class="dtype-desc">Auto-incrementing BIGINT. Use when you expect more than 2.1 billion rows.</div>
+          <div class="dtype-ex">id BIGSERIAL PRIMARY KEY</div>
+        </div>
+      </div>
+
+      <h3>Text Types</h3>
+      <div class="dtype-grid">
+        <div class="dtype-card">
+          <div class="dtype-name">VARCHAR(n)</div>
+          <div class="dtype-desc">Variable-length string, max n characters. Use when you have a known max length (name, email).</div>
+          <div class="dtype-ex">email VARCHAR(255)</div>
+        </div>
+        <div class="dtype-card">
+          <div class="dtype-name">CHAR(n)</div>
+          <div class="dtype-desc">Fixed-length string, always padded to n chars. Rarely useful — use VARCHAR instead.</div>
+          <div class="dtype-ex">country_code CHAR(2)</div>
+        </div>
+        <div class="dtype-card">
+          <div class="dtype-name">TEXT <span class="dtype-badge pg-only">PG</span></div>
+          <div class="dtype-desc">Unlimited length string. In Postgres, TEXT and VARCHAR(n) have identical performance. Use TEXT freely.</div>
+          <div class="dtype-ex">bio TEXT</div>
+        </div>
+      </div>
+
+      <div class="box box-tip">
+        <div class="box-label">💡 PostgreSQL-specific tip</div>
+        In most databases, VARCHAR is faster than TEXT. In PostgreSQL, <strong>they are exactly the same internally</strong>. Use <code>TEXT</code> when there's no meaningful max length, and <code>VARCHAR(n)</code> only when you want to enforce a limit as a constraint.
+      </div>
+
+      <h3>Date & Time Types</h3>
+      <div class="dtype-grid">
+        <div class="dtype-card">
+          <div class="dtype-name">DATE</div>
+          <div class="dtype-desc">Date only: year, month, day. Range: 4713 BC to 5874897 AD.</div>
+          <div class="dtype-ex">birth_date DATE → '1995-07-15'</div>
+        </div>
+        <div class="dtype-card">
+          <div class="dtype-name">TIME</div>
+          <div class="dtype-desc">Time of day only, no timezone. Range: 00:00:00 to 24:00:00.</div>
+          <div class="dtype-ex">opens_at TIME → '09:00:00'</div>
+        </div>
+        <div class="dtype-card">
+          <div class="dtype-name">TIMESTAMP</div>
+          <div class="dtype-desc">Date + time, no timezone. Stores what you put in. Careful with multi-timezone apps.</div>
+          <div class="dtype-ex">created_at TIMESTAMP → '2024-01-15 14:30:00'</div>
+        </div>
+        <div class="dtype-card">
+          <div class="dtype-name">TIMESTAMPTZ <span class="dtype-badge pg-only">PG</span></div>
+          <div class="dtype-desc">Date + time + timezone awareness. <strong>Recommended for almost all timestamps.</strong> Stored in UTC, shown in local time.</div>
+          <div class="dtype-ex">created_at TIMESTAMPTZ</div>
+        </div>
+        <div class="dtype-card">
+          <div class="dtype-name">INTERVAL <span class="dtype-badge pg-only">PG</span></div>
+          <div class="dtype-desc">A span of time. Can add/subtract from dates. Very useful for "30 days ago" type queries.</div>
+          <div class="dtype-ex">duration INTERVAL → '2 hours 30 minutes'</div>
+        </div>
+      </div>
+
+      <h3>Boolean & Special Types</h3>
+      <div class="dtype-grid">
+        <div class="dtype-card">
+          <div class="dtype-name">BOOLEAN</div>
+          <div class="dtype-desc">TRUE or FALSE. Also accepts 'yes'/'no', 'on'/'off', '1'/'0' on input.</div>
+          <div class="dtype-ex">is_active BOOLEAN DEFAULT TRUE</div>
+        </div>
+        <div class="dtype-card">
+          <div class="dtype-name">UUID <span class="dtype-badge pg-only">PG</span></div>
+          <div class="dtype-desc">Universally unique identifier. 128-bit. Great for distributed systems where you need globally unique IDs.</div>
+          <div class="dtype-ex">id UUID DEFAULT gen_random_uuid()</div>
+        </div>
+        <div class="dtype-card">
+          <div class="dtype-name">JSONB <span class="dtype-badge pg-only">PG</span></div>
+          <div class="dtype-desc">Binary JSON. Indexed, queryable. The #1 reason developers switch from MySQL to Postgres.</div>
+          <div class="dtype-ex">metadata JSONB</div>
+        </div>
+        <div class="dtype-card">
+          <div class="dtype-name">ARRAY <span class="dtype-badge pg-only">PG</span></div>
+          <div class="dtype-desc">Array of any type. Store multiple values in one column without a join table (for simple cases).</div>
+          <div class="dtype-ex">tags TEXT[]</div>
+        </div>
+        <div class="dtype-card">
+          <div class="dtype-name">ENUM <span class="dtype-badge pg-only">PG</span></div>
+          <div class="dtype-desc">Custom type with a fixed set of values. Faster and safer than using VARCHAR for statuses.</div>
+          <div class="dtype-ex">status order_status → 'pending','shipped'</div>
+        </div>
+        <div class="dtype-card">
+          <div class="dtype-name">BYTEA</div>
+          <div class="dtype-desc">Raw binary data. Use for small files, hashes, cryptographic keys.</div>
+          <div class="dtype-ex">avatar BYTEA</div>
+        </div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Creating a custom ENUM type</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Define a custom enum type first</span>
+<span class="kw">CREATE TYPE</span> order_status <span class="kw">AS ENUM</span> (
+    <span class="str">'pending'</span>, <span class="str">'processing'</span>, <span class="str">'shipped'</span>, <span class="str">'delivered'</span>, <span class="str">'cancelled'</span>
+);
+
+<span class="cmt">-- Use it in a table</span>
+<span class="kw">CREATE TABLE</span> <span class="tbl">orders</span> (
+    id     <span class="typ">SERIAL PRIMARY KEY</span>,
+    status <span class="dt">order_status</span> <span class="kw">NOT NULL DEFAULT</span> <span class="str">'pending'</span>
+);
+
+<span class="cmt">-- Adding a value to an existing enum</span>
+<span class="kw">ALTER TYPE</span> order_status <span class="kw">ADD VALUE</span> <span class="str">'refunded'</span>;</pre></div>
+      </div>
+    </section>
+
+    <!-- ══ LESSON 08 ══ -->
+    <section class="lesson" id="first-table">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 08</span>
+        <div class="lesson-title-wrap">
+          <div class="lesson-title">Your First Table</div>
+          <div class="lesson-sub">CREATE TABLE — designing it right the first time</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>We're going to build a realistic <code>users</code> table — the table almost every app has.</strong> I'll show you what each column does and why. We'll also look at the ALTER TABLE commands you'll use when requirements change (because they always do).
+        </div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — CREATE TABLE with every important feature</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- First, connect to your database</span>
+\c myapp
+
+<span class="cmt">-- Create a realistic users table</span>
+<span class="kw">CREATE TABLE</span> <span class="tbl">users</span> (
+    <span class="cmt">-- Primary key: auto-incrementing integer</span>
+    id            <span class="typ">BIGSERIAL</span>    <span class="kw">PRIMARY KEY</span>,
+
+    <span class="cmt">-- Basic info</span>
+    username      <span class="typ">VARCHAR(50)</span>  <span class="kw">NOT NULL UNIQUE</span>,
+    email         <span class="typ">VARCHAR(255)</span> <span class="kw">NOT NULL UNIQUE</span>,
+    password_hash <span class="typ">TEXT</span>         <span class="kw">NOT NULL</span>,
+
+    <span class="cmt">-- Optional profile info</span>
+    first_name    <span class="typ">VARCHAR(100)</span>,
+    last_name     <span class="typ">VARCHAR(100)</span>,
+    bio           <span class="typ">TEXT</span>,
+    avatar_url    <span class="typ">TEXT</span>,
+
+    <span class="cmt">-- Status as an enum</span>
+    status        <span class="typ">VARCHAR(20)</span>  <span class="kw">NOT NULL DEFAULT</span> <span class="str">'active'</span>
+                  <span class="kw">CHECK</span> (status <span class="kw">IN</span> (<span class="str">'active'</span>, <span class="str">'suspended'</span>, <span class="str">'deleted'</span>)),
+
+    <span class="cmt">-- Boolean flags</span>
+    is_verified   <span class="typ">BOOLEAN</span>      <span class="kw">NOT NULL DEFAULT</span> <span class="kw">FALSE</span>,
+    is_admin      <span class="typ">BOOLEAN</span>      <span class="kw">NOT NULL DEFAULT</span> <span class="kw">FALSE</span>,
+
+    <span class="cmt">-- Flexible metadata as JSONB</span>
+    preferences   <span class="typ">JSONB</span>        <span class="kw">DEFAULT</span> <span class="str">'{}'</span>::<span class="typ">jsonb</span>,
+
+    <span class="cmt">-- Timestamps (always use TIMESTAMPTZ!)</span>
+    created_at    <span class="typ">TIMESTAMPTZ</span>  <span class="kw">NOT NULL DEFAULT NOW()</span>,
+    updated_at    <span class="typ">TIMESTAMPTZ</span>  <span class="kw">NOT NULL DEFAULT NOW()</span>,
+    last_login_at <span class="typ">TIMESTAMPTZ</span>
+);
+
+<span class="cmt">-- Verify the table structure</span>
+\d users</pre></div>
+      </div>
+
+      <h3>Understanding each constraint</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Constraint</th><th>What it does</th><th>What happens on violation</th></tr></thead>
+          <tbody>
+            <tr><td><code>PRIMARY KEY</code></td><td>Uniquely identifies every row. Implicitly NOT NULL + UNIQUE.</td><td>Error: duplicate key value</td></tr>
+            <tr><td><code>NOT NULL</code></td><td>Column must always have a value — NULL is rejected.</td><td>Error: null value in column violates not-null constraint</td></tr>
+            <tr><td><code>UNIQUE</code></td><td>Every value in this column must be different across all rows.</td><td>Error: duplicate key value violates unique constraint</td></tr>
+            <tr><td><code>DEFAULT</code></td><td>If no value given on INSERT, use this value instead.</td><td>No error — uses default silently</td></tr>
+            <tr><td><code>CHECK(...)</code></td><td>Custom condition every inserted/updated value must satisfy.</td><td>Error: new row violates check constraint</td></tr>
+            <tr><td><code>REFERENCES</code></td><td>Foreign key — value must exist in another table.</td><td>Error: violates foreign key constraint</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Altering tables after creation</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — ALTER TABLE</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Add a new column</span>
+<span class="kw">ALTER TABLE</span> <span class="tbl">users</span>
+<span class="kw">ADD COLUMN</span> phone_number <span class="typ">VARCHAR(20)</span>;
+
+<span class="cmt">-- Add a column with a default (backfills existing rows)</span>
+<span class="kw">ALTER TABLE</span> <span class="tbl">users</span>
+<span class="kw">ADD COLUMN</span> login_count <span class="typ">INT</span> <span class="kw">NOT NULL DEFAULT</span> <span class="num">0</span>;
+
+<span class="cmt">-- Rename a column</span>
+<span class="kw">ALTER TABLE</span> <span class="tbl">users</span>
+<span class="kw">RENAME COLUMN</span> avatar_url <span class="kw">TO</span> profile_image_url;
+
+<span class="cmt">-- Change a column's data type</span>
+<span class="kw">ALTER TABLE</span> <span class="tbl">users</span>
+<span class="kw">ALTER COLUMN</span> phone_number <span class="kw">TYPE</span> <span class="typ">VARCHAR(30)</span>;
+
+<span class="cmt">-- Add a NOT NULL constraint (existing NULL rows will fail!)</span>
+<span class="kw">ALTER TABLE</span> <span class="tbl">users</span>
+<span class="kw">ALTER COLUMN</span> phone_number <span class="kw">SET NOT NULL</span>;
+
+<span class="cmt">-- Remove NOT NULL constraint</span>
+<span class="kw">ALTER TABLE</span> <span class="tbl">users</span>
+<span class="kw">ALTER COLUMN</span> phone_number <span class="kw">DROP NOT NULL</span>;
+
+<span class="cmt">-- Drop a column</span>
+<span class="kw">ALTER TABLE</span> <span class="tbl">users</span>
+<span class="kw">DROP COLUMN</span> phone_number;
+
+<span class="cmt">-- Rename the table</span>
+<span class="kw">ALTER TABLE</span> <span class="tbl">users</span> <span class="kw">RENAME TO</span> app_users;</pre></div>
+      </div>
+
+      <div class="box box-danger">
+        <div class="box-label">🚨 Production warning</div>
+        <strong>ALTER TABLE on large tables can lock the entire table</strong> in older Postgres versions. Adding a column with a DEFAULT in Postgres 11+ is safe and instant. Adding a NOT NULL constraint requires a full table scan. Always test schema changes on a copy of prod data first.
+      </div>
+    </section>
+
+    <!-- ══ LESSON 09 ══ -->
+    <section class="lesson" id="crud">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 09</span>
+        <div class="lesson-title-wrap">
+          <div class="lesson-title">CRUD Operations</div>
+          <div class="lesson-sub">INSERT, SELECT, UPDATE, DELETE — the four operations you'll use every day</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>CRUD = Create, Read, Update, Delete.</strong> Every operation you'll ever do on data fits into one of these four buckets. Let's work with the <code>users</code> table we just created and see each one in action. Follow along in your psql session.
+        </div>
+      </div>
+
+      <h3>INSERT — Create rows</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — INSERT</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Insert a single user</span>
+<span class="kw">INSERT INTO</span> <span class="tbl">users</span> (username, email, password_hash, first_name, last_name)
+<span class="kw">VALUES</span> (<span class="str">'alice_j'</span>, <span class="str">'alice@example.com'</span>, <span class="str">'$2b$10$hashedvalue'</span>, <span class="str">'Alice'</span>, <span class="str">'Johnson'</span>);
+
+<span class="cmt">-- Insert and get back the new row (RETURNING is PostgreSQL-specific ✨)</span>
+<span class="kw">INSERT INTO</span> <span class="tbl">users</span> (username, email, password_hash)
+<span class="kw">VALUES</span> (<span class="str">'bob_smith'</span>, <span class="str">'bob@example.com'</span>, <span class="str">'$2b$10$hashedvalue2'</span>)
+<span class="kw">RETURNING</span> id, username, created_at;
+
+<span class="cmt">-- Insert multiple rows at once</span>
+<span class="kw">INSERT INTO</span> <span class="tbl">users</span> (username, email, password_hash, is_admin)
+<span class="kw">VALUES</span>
+    (<span class="str">'carol_d'</span>,  <span class="str">'carol@example.com'</span>,  <span class="str">'$2b$10$hash3'</span>, <span class="kw">FALSE</span>),
+    (<span class="str">'david_k'</span>,  <span class="str">'david@example.com'</span>,  <span class="str">'$2b$10$hash4'</span>, <span class="kw">FALSE</span>),
+    (<span class="str">'superadmin'</span>,<span class="str">'admin@example.com'</span>, <span class="str">'$2b$10$hash5'</span>, <span class="kw">TRUE</span>);
+
+<span class="cmt">-- Insert with JSON preferences</span>
+<span class="kw">INSERT INTO</span> <span class="tbl">users</span> (username, email, password_hash, preferences)
+<span class="kw">VALUES</span> (
+    <span class="str">'eve_r'</span>,
+    <span class="str">'eve@example.com'</span>,
+    <span class="str">'$2b$10$hash6'</span>,
+    <span class="str">'{"theme": "dark", "language": "en", "notifications": true}'</span>::<span class="typ">jsonb</span>
+)
+<span class="kw">RETURNING</span> *;
+
+<span class="cmt">-- Upsert: insert OR update if username already exists (PostgreSQL 9.5+)</span>
+<span class="kw">INSERT INTO</span> <span class="tbl">users</span> (username, email, password_hash)
+<span class="kw">VALUES</span> (<span class="str">'alice_j'</span>, <span class="str">'alice_new@example.com'</span>, <span class="str">'$2b$10$newhash'</span>)
+<span class="kw">ON CONFLICT</span> (username)
+<span class="kw">DO UPDATE SET</span>
+    email = <span class="kw">EXCLUDED</span>.email,
+    updated_at = <span class="fn">NOW</span>();</pre></div>
+      </div>
+
+      <div class="box box-tip">
+        <div class="box-label">💡 RETURNING — PostgreSQL superpower</div>
+        <code>RETURNING</code> is a PostgreSQL extension that lets you get the inserted/updated/deleted row data back immediately. In your app code you can do <code>INSERT ... RETURNING id</code> to get the new row's ID without a second query.
+      </div>
+
+      <h3>SELECT — Read rows</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — SELECT</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Get all users</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">users</span>;
+
+<span class="cmt">-- Get specific columns</span>
+<span class="kw">SELECT</span> id, username, email, created_at <span class="kw">FROM</span> <span class="tbl">users</span>;
+
+<span class="cmt">-- Filter with WHERE</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">users</span>
+<span class="kw">WHERE</span> is_admin = <span class="kw">TRUE</span>;
+
+<span class="cmt">-- Text search (case-sensitive)</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">users</span>
+<span class="kw">WHERE</span> email <span class="kw">LIKE</span> <span class="str">'%@example.com'</span>;
+
+<span class="cmt">-- Case-insensitive search (PostgreSQL ILIKE ✨)</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">users</span>
+<span class="kw">WHERE</span> username <span class="kw">ILIKE</span> <span class="str">'alice%'</span>;
+
+<span class="cmt">-- Order results</span>
+<span class="kw">SELECT</span> id, username, created_at <span class="kw">FROM</span> <span class="tbl">users</span>
+<span class="kw">ORDER BY</span> created_at <span class="kw">DESC</span>;
+
+<span class="cmt">-- Pagination</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">users</span>
+<span class="kw">ORDER BY</span> id
+<span class="kw">LIMIT</span> <span class="num">10</span> <span class="kw">OFFSET</span> <span class="num">20</span>;  <span class="cmt">-- page 3 of 10-per-page</span>
+
+<span class="cmt">-- Count rows</span>
+<span class="kw">SELECT COUNT</span>(*) <span class="kw">FROM</span> <span class="tbl">users</span>;
+<span class="kw">SELECT COUNT</span>(*) <span class="kw">FROM</span> <span class="tbl">users</span> <span class="kw">WHERE</span> is_verified = <span class="kw">TRUE</span>;
+
+<span class="cmt">-- Query JSONB field ✨</span>
+<span class="kw">SELECT</span> username, preferences->><span class="str">'theme'</span> <span class="kw">AS</span> theme
+<span class="kw">FROM</span> <span class="tbl">users</span>
+<span class="kw">WHERE</span> preferences->><span class="str">'theme'</span> = <span class="str">'dark'</span>;
+
+<span class="cmt">-- NULL checks</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">users</span> <span class="kw">WHERE</span> last_login_at <span class="kw">IS NULL</span>;    <span class="cmt">-- never logged in</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">users</span> <span class="kw">WHERE</span> last_login_at <span class="kw">IS NOT NULL</span>; <span class="cmt">-- has logged in</span>
+
+<span class="cmt">-- Computed columns</span>
+<span class="kw">SELECT</span>
+    id,
+    first_name || <span class="str">' '</span> || last_name <span class="kw">AS</span> full_name,
+    <span class="fn">UPPER</span>(email) <span class="kw">AS</span> email_upper,
+    <span class="fn">NOW</span>() - created_at <span class="kw">AS</span> account_age
+<span class="kw">FROM</span> <span class="tbl">users</span>;</pre></div>
+      </div>
+
+      <h3>UPDATE — Modify rows</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — UPDATE</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Update a specific user by ID</span>
+<span class="kw">UPDATE</span> <span class="tbl">users</span>
+<span class="kw">SET</span> is_verified = <span class="kw">TRUE</span>,
+    updated_at  = <span class="fn">NOW</span>()
+<span class="kw">WHERE</span> id = <span class="num">1</span>;
+
+<span class="cmt">-- Update and see what changed (RETURNING ✨)</span>
+<span class="kw">UPDATE</span> <span class="tbl">users</span>
+<span class="kw">SET</span> last_login_at = <span class="fn">NOW</span>()
+<span class="kw">WHERE</span> username = <span class="str">'alice_j'</span>
+<span class="kw">RETURNING</span> id, username, last_login_at;
+
+<span class="cmt">-- Update multiple rows at once</span>
+<span class="kw">UPDATE</span> <span class="tbl">users</span>
+<span class="kw">SET</span> status = <span class="str">'suspended'</span>
+<span class="kw">WHERE</span> is_verified = <span class="kw">FALSE</span>
+  <span class="kw">AND</span> created_at < <span class="fn">NOW</span>() - <span class="kw">INTERVAL</span> <span class="str">'30 days'</span>;
+
+<span class="cmt">-- Update a JSONB field</span>
+<span class="kw">UPDATE</span> <span class="tbl">users</span>
+<span class="kw">SET</span> preferences = preferences || <span class="str">'{"theme": "light"}'</span>::<span class="typ">jsonb</span>
+<span class="kw">WHERE</span> id = <span class="num">5</span>;</pre></div>
+      </div>
+
+      <div class="box box-danger">
+        <div class="box-label">🚨 Always use WHERE with UPDATE and DELETE</div>
+        <code>UPDATE users SET status = 'deleted';</code> without a WHERE clause updates <strong>every single row</strong> in the table. This is one of the most common catastrophic mistakes. Always check your WHERE clause first with a SELECT.
+      </div>
+
+      <h3>DELETE — Remove rows</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — DELETE</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Always SELECT first to verify what you'll delete</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">users</span> <span class="kw">WHERE</span> id = <span class="num">3</span>;
+
+<span class="cmt">-- Then delete it</span>
+<span class="kw">DELETE FROM</span> <span class="tbl">users</span> <span class="kw">WHERE</span> id = <span class="num">3</span>;
+
+<span class="cmt">-- Delete and confirm what was removed (RETURNING ✨)</span>
+<span class="kw">DELETE FROM</span> <span class="tbl">users</span>
+<span class="kw">WHERE</span> status = <span class="str">'deleted'</span>
+<span class="kw">RETURNING</span> id, username, email;
+
+<span class="cmt">-- Safe pattern: use a transaction so you can rollback</span>
+<span class="kw">BEGIN</span>;
+<span class="kw">DELETE FROM</span> <span class="tbl">users</span> <span class="kw">WHERE</span> created_at < <span class="str">'2022-01-01'</span>;
+<span class="cmt">-- Check how many rows were affected</span>
+<span class="cmt">-- If happy: COMMIT; If not: ROLLBACK;</span>
+<span class="kw">ROLLBACK</span>;  <span class="cmt">-- ← change to COMMIT when you're sure</span></pre></div>
+      </div>
+
+      <div class="box box-tip">
+        <div class="box-label">💡 Pro tip — Soft deletes</div>
+        In real apps, most teams don't actually DELETE rows. Instead they set <code>deleted_at = NOW()</code> (a "soft delete"). This preserves history and allows recovery. Then filter with <code>WHERE deleted_at IS NULL</code> in all queries.
+      </div>
+
+      <!-- Mini quiz -->
+      <div class="quiz" id="q1">
+        <div class="quiz-q">🧠 Quick check: Which command would you use to get back the newly inserted row's ID without running a second SELECT?</div>
+        <div class="quiz-options">
+          <button class="quiz-opt" onclick="answer(this, false, 'q1')">A) INSERT ... SELECT id FROM users ORDER BY id DESC LIMIT 1</button>
+          <button class="quiz-opt" onclick="answer(this, true, 'q1')">B) INSERT ... RETURNING id</button>
+          <button class="quiz-opt" onclick="answer(this, false, 'q1')">C) INSERT ... GET id</button>
+          <button class="quiz-opt" onclick="answer(this, false, 'q1')">D) SELECT lastval()</button>
+        </div>
+        <div class="quiz-explain" id="q1-explain">
+          ✅ <strong>B is correct.</strong> <code>RETURNING</code> is a PostgreSQL extension that returns the specified columns from the inserted row immediately. Note: <code>SELECT lastval()</code> also works for serial IDs but is a separate query and session-specific — <code>RETURNING</code> is safer and more explicit.
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ LESSON 10 ══ -->
+    <section class="lesson" id="recap">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 10</span>
+        <div class="lesson-title-wrap">
+          <div class="lesson-title">Part 1 Recap & What's Next</div>
+          <div class="lesson-sub">Consolidate what you've learned and preview Part 2</div>
+        </div>
+      </div>
+
+      <div class="summary">
+        <h4>✅ What you learned in Part 1</h4>
+        <ul>
+          <li>PostgreSQL is an open-source RDBMS that's been battle-tested for 40 years and powers world-class apps</li>
+          <li>How to install PostgreSQL and connect with psql on macOS, Linux, and Windows</li>
+          <li>Essential psql commands: <code>\l</code>, <code>\c</code>, <code>\dt</code>, <code>\d tablename</code>, <code>\q</code></li>
+          <li>How PostgreSQL processes a query: Parser → Rewriter → Planner → Executor</li>
+          <li>The hierarchy: Server → Database → Schema → Table</li>
+          <li>How to create databases, schemas, and users with proper permissions</li>
+          <li>All the major PostgreSQL data types — especially TIMESTAMPTZ, NUMERIC, TEXT, UUID, JSONB, ARRAY</li>
+          <li>How to CREATE TABLE with NOT NULL, UNIQUE, DEFAULT, CHECK constraints</li>
+          <li>How to ALTER TABLE to evolve your schema safely</li>
+          <li>Full CRUD: INSERT with RETURNING, SELECT with filtering, UPDATE safely, DELETE safely</li>
+          <li>The importance of transactions (BEGIN / COMMIT / ROLLBACK) for destructive operations</li>
+        </ul>
+      </div>
+
+      <h3>🚀 Coming in Part 2 — Relationships & Queries</h3>
+      <div class="feat-grid">
+        <div class="feat-card">
+          <div class="feat-icon">🔗</div>
+          <div class="feat-title">Foreign Keys & Relationships</div>
+          <div class="feat-desc">One-to-many, many-to-many, cascades. How tables reference each other safely.</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-icon">🔀</div>
+          <div class="feat-title">JOINs in Depth</div>
+          <div class="feat-desc">INNER, LEFT, RIGHT, FULL OUTER, CROSS, SELF. When to use each and how the planner handles them.</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-icon">⚡</div>
+          <div class="feat-title">Indexes</div>
+          <div class="feat-desc">B-tree, GIN, GiST, BRIN, partial indexes. Make queries 100x faster.</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-icon">📊</div>
+          <div class="feat-title">Aggregate Functions & GROUP BY</div>
+          <div class="feat-desc">COUNT, SUM, AVG, MIN, MAX. Grouping and filtering groups with HAVING.</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-icon">🧩</div>
+          <div class="feat-title">CTEs (WITH clause)</div>
+          <div class="feat-desc">Write readable, reusable subqueries. Recursive CTEs for hierarchical data.</div>
+        </div>
+        <div class="feat-card">
+          <div class="feat-icon">🔍</div>
+          <div class="feat-title">EXPLAIN ANALYZE</div>
+          <div class="feat-desc">Read the query execution plan. Identify and fix slow queries like a pro.</div>
+        </div>
+      </div>
+
+      <div class="box box-info">
+        <div class="box-label">📌 Practice exercise before Part 2</div>
+        Create a <code>products</code> table with: id, name, description, price (NUMERIC), stock_quantity (INT), category (TEXT), is_available (BOOLEAN), created_at (TIMESTAMPTZ). Then insert 5 rows and practice SELECT with different WHERE conditions.
+      </div>
+
+      <div class="lesson-nav">
+        <span></span>
+        <a class="nav-btn primary" href="#">Part 2 — Coming Soon →</a>
+      </div>
+    </section>
+
+  </div><!-- /content -->
+
+  <footer>
+    🐘 PostgreSQL Learn from Zero &nbsp;·&nbsp; Part 1 of 4 &nbsp;·&nbsp; <a href="https://bjonnalagadda-dsa.github.io/dev-hub/" style="color:var(--accent)">← Back to Dev Hub</a>
+  </footer>
+
+</main>
+
+<script>
+  // OS tab switcher
+  function switchOS(os, btn) {
+    document.querySelectorAll('.os-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.os-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('os-' + os).classList.add('active');
+  }
+
+  // Quiz
+  function answer(btn, correct, qid) {
+    const opts = btn.closest('.quiz-options').querySelectorAll('.quiz-opt');
+    opts.forEach(o => o.disabled = true);
+    btn.classList.add(correct ? 'correct' : 'wrong');
+    document.getElementById(qid + '-explain').classList.add('show');
+  }
+
+  // Active sidebar link on scroll
+  const lessons = document.querySelectorAll('.lesson, .hero');
+  const navLinks = document.querySelectorAll('.nav-link');
+  const progressFill = document.getElementById('progress');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        navLinks.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.nav-link[href="#${id}"]`);
+        if (active) active.classList.add('active');
+
+        // Update progress bar
+        const allIds = ['what-is-pg','why-pg','install','psql','architecture','databases','datatypes','first-table','crud','recap'];
+        const idx = allIds.indexOf(id);
+        if (idx >= 0) progressFill.style.width = ((idx + 1) / allIds.length * 100) + '%';
+      }
+    });
+  }, { threshold: 0.25 });
+
+  lessons.forEach(s => observer.observe(s));
+
+  // Mobile sidebar close on nav click
+  navLinks.forEach(l => l.addEventListener('click', () => {
+    if (window.innerWidth <= 820) document.querySelector('.sidebar').classList.remove('open');
+  }));
+
+  // Copy buttons
+  document.querySelectorAll('.code-copy').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const code = btn.closest('.code-wrap').querySelector('pre').innerText;
+      navigator.clipboard.writeText(code);
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = 'Copy', 1500);
+    });
+  });
+</script>
+</body>
+</html>
