@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PostgreSQL Part 3 — Views, Functions, Triggers, JSONB & Full-Text Search</title>
+  <style>
+    :root {
+      --bg:#0e1016;--surface:#161b27;--surface2:#1e2536;--border:#2a3350;
+      --accent:#4f86f7;--accent2:#00c9a7;--accent3:#f7c948;--accent4:#f06595;
+      --text:#e2e8f0;--muted:#7a8ba8;--code-bg:#0a0d14;--radius:12px;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    html{scroll-behavior:smooth;}
+    body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;line-height:1.75;font-size:15px;}
+    /* SIDEBAR */
+    .sidebar{position:fixed;left:0;top:0;width:272px;height:100vh;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;z-index:100;}
+    .sidebar::-webkit-scrollbar{width:3px;}.sidebar::-webkit-scrollbar-thumb{background:var(--border);}
+    .sb-header{padding:22px 18px 16px;background:linear-gradient(135deg,#4f86f711,#00c9a708);border-bottom:1px solid var(--border);}
+    .sb-logo{font-size:18px;font-weight:800;color:var(--accent);}
+    .sb-sub{font-size:11px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:1px;}
+    .sb-parts{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;}
+    .sb-part{font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid;text-decoration:none;transition:all .15s;}
+    .sb-part.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+    .sb-part.done{border-color:var(--accent2);color:var(--accent2);background:#00c9a711;}
+    .sb-part.locked{border-color:var(--border);color:var(--muted);cursor:default;}
+    .sb-section-title{padding:12px 18px 4px;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:700;}
+    .sidebar a.nav-link{display:flex;align-items:center;gap:8px;padding:7px 18px;color:var(--muted);text-decoration:none;font-size:13px;border-left:2px solid transparent;transition:all .15s;}
+    .sidebar a.nav-link:hover{color:var(--text);background:var(--surface2);border-left-color:var(--border);}
+    .sidebar a.nav-link.active{color:var(--accent);border-left-color:var(--accent);background:#4f86f70a;font-weight:600;}
+    .nav-num{font-size:10px;color:var(--border);font-weight:700;min-width:16px;}
+    .progress-bar{height:3px;background:var(--border);}
+    .progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0%;transition:width .3s;}
+    /* MAIN */
+    .main{margin-left:272px;}
+    .hero{padding:72px 64px 56px;position:relative;overflow:hidden;border-bottom:1px solid var(--border);background:radial-gradient(ellipse at 20% 50%,#4f86f712 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,#00c9a708 0%,transparent 50%);}
+    .eyebrow-badge{background:#4f86f711;border:1px solid #4f86f744;color:var(--accent);padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;}
+    .hero h1{font-size:44px;font-weight:900;line-height:1.1;letter-spacing:-1px;margin:16px 0 14px;}
+    .hero h1 .pg{color:var(--accent);}.hero h1 .part{color:var(--accent3);font-size:24px;display:block;font-weight:700;}
+    .hero-desc{font-size:17px;color:var(--muted);max-width:580px;margin-bottom:28px;line-height:1.6;}
+    .hero-chips{display:flex;flex-wrap:wrap;gap:8px;}
+    .chip{display:flex;align-items:center;gap:5px;padding:5px 12px;background:var(--surface);border:1px solid var(--border);border-radius:20px;font-size:12px;color:var(--muted);}
+    .chip .dot{width:6px;height:6px;border-radius:50%;}
+    /* CONTENT */
+    .content{padding:0 64px 100px;}
+    .lesson{padding:56px 0 48px;border-bottom:1px solid var(--border);}
+    .lesson:last-child{border-bottom:none;}
+    .lesson-header{display:flex;align-items:flex-start;gap:16px;margin-bottom:28px;}
+    .lesson-num{font-size:11px;font-weight:800;color:var(--accent);background:#4f86f711;border:1px solid #4f86f733;border-radius:8px;padding:4px 8px;text-transform:uppercase;letter-spacing:1px;white-space:nowrap;margin-top:4px;}
+    .lesson-title{font-size:26px;font-weight:800;line-height:1.2;margin-bottom:4px;}
+    .lesson-sub{font-size:14px;color:var(--muted);}
+    /* TEACHER */
+    .teacher{display:flex;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin:20px 0;}
+    .teacher-avatar{font-size:24px;flex-shrink:0;}
+    .teacher-body{font-size:14px;color:var(--muted);line-height:1.65;}
+    .teacher-body strong{color:var(--text);}
+    /* BOXES */
+    .box{border-radius:var(--radius);padding:16px 20px;margin:16px 0;font-size:14px;line-height:1.6;}
+    .box-tip{background:#00c9a70d;border:1px solid #00c9a730;border-left:3px solid var(--accent2);}
+    .box-warn{background:#f7c9480d;border:1px solid #f7c94830;border-left:3px solid var(--accent3);}
+    .box-info{background:#4f86f70d;border:1px solid #4f86f730;border-left:3px solid var(--accent);}
+    .box-danger{background:#f065950d;border:1px solid #f0659530;border-left:3px solid var(--accent4);}
+    .box-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:flex;align-items:center;gap:5px;}
+    .box-tip .box-label{color:var(--accent2);}.box-warn .box-label{color:var(--accent3);}
+    .box-info .box-label{color:var(--accent);}.box-danger .box-label{color:var(--accent4);}
+    /* CODE */
+    .code-wrap{margin:18px 0;}
+    .code-header{display:flex;align-items:center;justify-content:space-between;background:#131720;border:1px solid var(--border);border-bottom:none;border-radius:var(--radius) var(--radius) 0 0;padding:8px 16px;}
+    .code-lang{font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1px;}
+    .code-body{background:var(--code-bg);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius);padding:18px 20px;overflow-x:auto;}
+    .code-body pre{font-family:'JetBrains Mono','Fira Code',monospace;font-size:13.5px;line-height:1.75;}
+    .kw{color:#79b8ff;font-weight:600;}.fn{color:#b392f0;}.str{color:#9ecbff;}
+    .num{color:#f97583;}.cmt{color:#444d56;font-style:italic;}.tbl{color:#f8e3a1;}
+    .typ{color:#85e89d;}.op{color:#e1e4e8;}.plpg{color:#f7c948;}
+    code{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-family:monospace;font-size:13px;color:var(--accent2);}
+    /* TABLE */
+    .tbl-wrap{overflow-x:auto;margin:16px 0;}
+    table{width:100%;border-collapse:collapse;font-size:13.5px;}
+    th{background:var(--surface2);padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);border-bottom:2px solid var(--border);font-weight:700;}
+    td{padding:10px 14px;border-bottom:1px solid var(--border);color:var(--muted);vertical-align:top;}
+    tr:hover td{background:var(--surface);color:var(--text);}
+    td code{font-size:12px;}
+    /* GRID */
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0;}
+    .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0;}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;transition:all .2s;}
+    .card:hover{border-color:var(--accent);transform:translateY(-2px);}
+    .card h4{font-size:14px;font-weight:700;margin-bottom:8px;}
+    .card p{font-size:13px;color:var(--muted);line-height:1.5;}
+    /* STEPS */
+    .steps{display:flex;flex-direction:column;gap:0;margin:20px 0;}
+    .step{display:flex;gap:18px;padding-bottom:24px;position:relative;}
+    .step:last-child{padding-bottom:0;}
+    .step-left{display:flex;flex-direction:column;align-items:center;}
+    .step-num{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+    .step-line{flex:1;width:2px;background:linear-gradient(to bottom,var(--accent),transparent);margin-top:4px;}
+    .step:last-child .step-line{display:none;}
+    .step-body{flex:1;}
+    .step-title{font-weight:700;font-size:15px;margin-bottom:4px;}
+    .step-desc{font-size:13.5px;color:var(--muted);}
+    /* SUMMARY */
+    .summary{background:linear-gradient(135deg,#4f86f710,#00c9a708);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin:24px 0;}
+    .summary h4{font-size:15px;font-weight:800;color:var(--accent2);margin-bottom:12px;}
+    .summary ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+    .summary ul li{font-size:13.5px;color:var(--muted);display:flex;align-items:flex-start;gap:8px;}
+    .summary ul li::before{content:'✓';color:var(--accent2);font-weight:700;flex-shrink:0;}
+    /* QUIZ */
+    .quiz{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin:24px 0;}
+    .quiz-q{font-weight:700;font-size:15px;margin-bottom:14px;}
+    .quiz-options{display:flex;flex-direction:column;gap:8px;}
+    .quiz-opt{padding:10px 16px;border-radius:8px;border:1px solid var(--border);cursor:pointer;font-size:13.5px;color:var(--muted);transition:all .15s;text-align:left;background:var(--bg);}
+    .quiz-opt:hover{border-color:var(--accent);color:var(--text);}
+    .quiz-opt.correct{border-color:var(--accent2);background:#00c9a710;color:var(--accent2);}
+    .quiz-opt.wrong{border-color:var(--accent4);background:#f0659510;color:var(--accent4);}
+    .quiz-explain{margin-top:12px;font-size:13px;color:var(--muted);display:none;}
+    .quiz-explain.show{display:block;}
+    /* NAV */
+    .nav-btns{display:flex;justify-content:space-between;padding:24px 0 0;border-top:1px solid var(--border);margin-top:20px;}
+    .nav-btn{display:flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;transition:all .15s;}
+    .nav-btn:hover{border-color:var(--accent);color:var(--accent);}
+    .nav-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+    /* JSON highlight */
+    .jk{color:#9ecbff;}.jv{color:#85e89d;}.js{color:#f97583;}
+    /* MOBILE */
+    .hamburger{display:none;position:fixed;top:14px;left:14px;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;cursor:pointer;font-size:16px;}
+    footer{text-align:center;padding:32px;color:var(--muted);font-size:12px;border-top:1px solid var(--border);}
+    @media(max-width:820px){
+      .sidebar{transform:translateX(-100%);transition:transform .3s;}.sidebar.open{transform:translateX(0);}
+      .main{margin-left:0;}.hero{padding:56px 24px 40px;}.hero h1{font-size:28px;}
+      .content{padding:0 24px 80px;}.hamburger{display:block;}
+      .grid2,.grid3{grid-template-columns:1fr;}
+    }
+    p{color:var(--muted);margin:10px 0;font-size:14.5px;line-height:1.75;}
+    h3{font-size:18px;font-weight:700;color:var(--text);margin:24px 0 10px;}
+    h4{font-size:15px;font-weight:700;color:var(--text);margin:18px 0 8px;}
+    strong{color:var(--text);}
+    ul,ol{padding-left:20px;color:var(--muted);font-size:14.5px;line-height:1.8;}
+    li{margin:3px 0;}
+  </style>
+</head>
+<body>
+<button class="hamburger" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+
+<aside class="sidebar">
+  <div class="sb-header">
+    <div class="sb-logo">🐘 PostgreSQL</div>
+    <div class="sb-sub">Learn from Zero — Teacher Mode</div>
+    <div class="sb-parts">
+      <a class="sb-part done" href="index.html">Part 1</a>
+      <a class="sb-part done" href="part2.html">Part 2</a>
+      <a class="sb-part active" href="#">Part 3</a>
+      <span class="sb-part locked">Part 4</span>
+    </div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+
+  <div class="sb-section-title">Part 3 — Advanced PostgreSQL</div>
+  <a class="nav-link active" href="#views"><span class="nav-num">01</span>Views</a>
+  <a class="nav-link" href="#matviews"><span class="nav-num">02</span>Materialized Views</a>
+  <a class="nav-link" href="#functions"><span class="nav-num">03</span>Functions & PL/pgSQL</a>
+  <a class="nav-link" href="#procedures"><span class="nav-num">04</span>Stored Procedures</a>
+  <a class="nav-link" href="#triggers"><span class="nav-num">05</span>Triggers</a>
+  <a class="nav-link" href="#transactions"><span class="nav-num">06</span>Transactions in Depth</a>
+  <a class="nav-link" href="#jsonb"><span class="nav-num">07</span>JSONB Deep Dive</a>
+  <a class="nav-link" href="#fts"><span class="nav-num">08</span>Full-Text Search</a>
+  <a class="nav-link" href="#recap"><span class="nav-num">09</span>Recap & What's Next</a>
+</aside>
+
+<main class="main">
+  <div class="hero">
+    <span class="eyebrow-badge">Part 3 of 4 — Advanced PostgreSQL</span>
+    <h1>
+      <span class="part">🐘 PostgreSQL —</span>
+      Level up with <span class="pg">power features</span>
+    </h1>
+    <p class="hero-desc">
+      Parts 1 & 2 gave you a solid foundation. Part 3 is where PostgreSQL stops looking like "just SQL" and starts looking like a full programming environment. Views, PL/pgSQL functions, triggers that fire automatically, deep JSONB querying, and a built-in search engine — all covered.
+    </p>
+    <div class="hero-chips">
+      <span class="chip"><span class="dot" style="background:#4f86f7"></span>~70 min read</span>
+      <span class="chip"><span class="dot" style="background:#00c9a7"></span>9 lessons</span>
+      <span class="chip"><span class="dot" style="background:#f7c948"></span>Needs Parts 1 & 2</span>
+      <span class="chip"><span class="dot" style="background:#f06595"></span>PL/pgSQL included</span>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ══════════════════════════════════════════════
+         LESSON 01 — VIEWS
+    ══════════════════════════════════════════════ -->
+    <section class="lesson" id="views">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 01</span>
+        <div>
+          <div class="lesson-title">Views</div>
+          <div class="lesson-sub">Virtual tables — save complex queries as named objects</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>A view is a saved SELECT query with a name.</strong> Instead of writing the same 10-line JOIN every time, you define it once as a view and then query it like a table. The view doesn't store any data — every time you SELECT from it, it runs the underlying query. Think of it as a named window into your data.
+        </div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Creating and using views</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Without a view, every dashboard query needs this JOIN:</span>
+<span class="kw">SELECT</span>
+    o.id, u.username, u.email,
+    o.total, o.status, o.created_at
+<span class="kw">FROM</span> <span class="tbl">orders</span> o
+<span class="kw">JOIN</span> <span class="tbl">users</span> u <span class="kw">ON</span> u.id = o.user_id;
+
+<span class="cmt">-- Create a view — save it once, use it everywhere</span>
+<span class="kw">CREATE VIEW</span> <span class="tbl">orders_with_users</span> <span class="kw">AS</span>
+<span class="kw">SELECT</span>
+    o.id          <span class="kw">AS</span> order_id,
+    u.id          <span class="kw">AS</span> user_id,
+    u.username,
+    u.email,
+    o.total,
+    o.status,
+    o.created_at,
+    o.updated_at
+<span class="kw">FROM</span> <span class="tbl">orders</span> o
+<span class="kw">JOIN</span> <span class="tbl">users</span> u <span class="kw">ON</span> u.id = o.user_id;
+
+<span class="cmt">-- Now query it like a table</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">orders_with_users</span>
+<span class="kw">WHERE</span> status = <span class="str">'pending'</span>;
+
+<span class="kw">SELECT</span> username, <span class="fn">SUM</span>(total) <span class="kw">AS</span> lifetime_value
+<span class="kw">FROM</span> <span class="tbl">orders_with_users</span>
+<span class="kw">GROUP BY</span> username
+<span class="kw">ORDER BY</span> lifetime_value <span class="kw">DESC</span>;</pre></div>
+      </div>
+
+      <h3>More view patterns</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Real-world view examples</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- A "safe" view that hides sensitive columns</span>
+<span class="kw">CREATE VIEW</span> <span class="tbl">public_users</span> <span class="kw">AS</span>
+<span class="kw">SELECT</span> id, username, bio, avatar_url, created_at
+<span class="kw">FROM</span> <span class="tbl">users</span>
+<span class="kw">WHERE</span> status = <span class="str">'active'</span>;
+<span class="cmt">-- Now grant public_users to API role — no password_hash ever exposed</span>
+
+<span class="cmt">-- Aggregated stats view</span>
+<span class="kw">CREATE VIEW</span> <span class="tbl">product_sales_summary</span> <span class="kw">AS</span>
+<span class="kw">SELECT</span>
+    p.id,
+    p.name,
+    p.price,
+    <span class="fn">COUNT</span>(oi.id)         <span class="kw">AS</span> times_ordered,
+    <span class="fn">SUM</span>(oi.quantity)     <span class="kw">AS</span> total_units_sold,
+    <span class="fn">SUM</span>(oi.quantity * oi.unit_price) <span class="kw">AS</span> total_revenue
+<span class="kw">FROM</span> <span class="tbl">products</span> p
+<span class="kw">LEFT JOIN</span> <span class="tbl">order_items</span> oi <span class="kw">ON</span> oi.product_id = p.id
+<span class="kw">GROUP BY</span> p.id, p.name, p.price;
+
+<span class="cmt">-- Update or replace a view</span>
+<span class="kw">CREATE OR REPLACE VIEW</span> <span class="tbl">public_users</span> <span class="kw">AS</span>
+<span class="kw">SELECT</span> id, username, bio, avatar_url, created_at, is_verified
+<span class="kw">FROM</span> <span class="tbl">users</span>
+<span class="kw">WHERE</span> status = <span class="str">'active'</span>;
+
+<span class="cmt">-- Drop a view</span>
+<span class="kw">DROP VIEW IF EXISTS</span> <span class="tbl">public_users</span>;
+
+<span class="cmt">-- List all views in the current database</span>
+<span class="kw">SELECT</span> table_name <span class="kw">FROM</span> <span class="tbl">information_schema.views</span>
+<span class="kw">WHERE</span> table_schema = <span class="str">'public'</span>;</pre></div>
+      </div>
+
+      <h3>Updatable Views</h3>
+      <p>Simple views (no JOIN, no GROUP BY, no DISTINCT, no aggregate) are automatically updatable — you can INSERT/UPDATE/DELETE through them. Complex views need a <code>RULE</code> or <code>INSTEAD OF</code> trigger.</p>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Updatable view</span></div>
+        <div class="code-body"><pre>
+<span class="kw">CREATE VIEW</span> <span class="tbl">active_users</span> <span class="kw">AS</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">users</span> <span class="kw">WHERE</span> status = <span class="str">'active'</span>;
+
+<span class="cmt">-- This works — updates the underlying users table</span>
+<span class="kw">UPDATE</span> <span class="tbl">active_users</span>
+<span class="kw">SET</span> is_verified = <span class="kw">TRUE</span>
+<span class="kw">WHERE</span> id = <span class="num">5</span>;
+
+<span class="cmt">-- WITH CHECK OPTION prevents rows from "escaping" the view's WHERE</span>
+<span class="kw">CREATE VIEW</span> <span class="tbl">active_users</span> <span class="kw">AS</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">users</span> <span class="kw">WHERE</span> status = <span class="str">'active'</span>
+<span class="kw">WITH CHECK OPTION</span>;
+<span class="cmt">-- Now you can't INSERT/UPDATE a row to status='suspended' through this view</span></pre></div>
+      </div>
+
+      <div class="box box-tip">
+        <div class="box-label">💡 Best uses for views</div>
+        <ul style="margin-top:4px">
+          <li><strong>Security:</strong> expose only the columns a role needs — hide passwords, PII</li>
+          <li><strong>Simplicity:</strong> give complex JOINs a clean name for your API layer</li>
+          <li><strong>Backwards compatibility:</strong> rename a column in the table but keep the old name in a view</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════
+         LESSON 02 — MATERIALIZED VIEWS
+    ══════════════════════════════════════════════ -->
+    <section class="lesson" id="matviews">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 02</span>
+        <div>
+          <div class="lesson-title">Materialized Views</div>
+          <div class="lesson-sub">Pre-computed result sets — trading freshness for speed</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>A materialized view stores the query result on disk — like a snapshot.</strong> Reading it is instant because no computation happens at query time. The tradeoff: the data can be stale until you REFRESH it. Use them for expensive aggregation queries that power dashboards, reports, or analytics where a few minutes of delay is acceptable.
+        </div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Materialized views</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- This query is expensive — scans all orders, all items, all products</span>
+<span class="cmt">-- Running it on every dashboard load is wasteful</span>
+<span class="kw">CREATE MATERIALIZED VIEW</span> <span class="tbl">daily_revenue</span> <span class="kw">AS</span>
+<span class="kw">SELECT</span>
+    DATE_TRUNC(<span class="str">'day'</span>, o.created_at) <span class="kw">AS</span> day,
+    <span class="fn">COUNT</span>(DISTINCT o.id)             <span class="kw">AS</span> order_count,
+    <span class="fn">COUNT</span>(DISTINCT o.user_id)        <span class="kw">AS</span> unique_customers,
+    <span class="fn">SUM</span>(o.total)                     <span class="kw">AS</span> revenue,
+    <span class="fn">AVG</span>(o.total)                     <span class="kw">AS</span> avg_order_value
+<span class="kw">FROM</span> <span class="tbl">orders</span> o
+<span class="kw">WHERE</span> o.status = <span class="str">'paid'</span>
+<span class="kw">GROUP BY</span> DATE_TRUNC(<span class="str">'day'</span>, o.created_at)
+<span class="kw">ORDER BY</span> day;
+
+<span class="cmt">-- Query the materialized view — always instant</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">daily_revenue</span>
+<span class="kw">WHERE</span> day >= NOW() - <span class="kw">INTERVAL</span> <span class="str">'30 days'</span>;
+
+<span class="cmt">-- You can index materialized views just like tables!</span>
+<span class="kw">CREATE INDEX</span> idx_daily_revenue_day <span class="kw">ON</span> <span class="tbl">daily_revenue</span>(day);
+
+<span class="cmt">-- Refresh: re-run the underlying query and update the stored data</span>
+<span class="kw">REFRESH MATERIALIZED VIEW</span> <span class="tbl">daily_revenue</span>;
+
+<span class="cmt">-- Refresh WITHOUT locking reads (PostgreSQL 9.4+)</span>
+<span class="cmt">-- Requires a UNIQUE index on the view</span>
+<span class="kw">CREATE UNIQUE INDEX</span> idx_daily_revenue_day_uniq <span class="kw">ON</span> <span class="tbl">daily_revenue</span>(day);
+<span class="kw">REFRESH MATERIALIZED VIEW CONCURRENTLY</span> <span class="tbl">daily_revenue</span>;
+
+<span class="cmt">-- Drop it</span>
+<span class="kw">DROP MATERIALIZED VIEW</span> <span class="tbl">daily_revenue</span>;</pre></div>
+      </div>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th></th><th>View</th><th>Materialized View</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Data storage</strong></td><td>None — runs query each time</td><td>Stored on disk like a table</td></tr>
+            <tr><td><strong>Speed</strong></td><td>Depends on underlying query</td><td>Always fast (just a table read)</td></tr>
+            <tr><td><strong>Freshness</strong></td><td>Always up to date</td><td>Stale until REFRESH</td></tr>
+            <tr><td><strong>Indexes</strong></td><td>Not directly</td><td>Yes, like any table</td></tr>
+            <tr><td><strong>Best for</strong></td><td>Simple queries, security layers</td><td>Expensive aggregations, dashboards</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="box box-info">
+        <div class="box-label">📌 Auto-refresh pattern</div>
+        Schedule <code>REFRESH MATERIALIZED VIEW CONCURRENTLY daily_revenue;</code> via pg_cron (a PostgreSQL extension), a cron job, or your app's background job scheduler. Run it every 15 minutes for near-real-time dashboards.
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════
+         LESSON 03 — FUNCTIONS & PL/pgSQL
+    ══════════════════════════════════════════════ -->
+    <section class="lesson" id="functions">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 03</span>
+        <div>
+          <div class="lesson-title">Functions & PL/pgSQL</div>
+          <div class="lesson-sub">Write reusable logic that lives inside the database</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>PostgreSQL has its own programming language built in — PL/pgSQL.</strong> It looks like Pascal mixed with SQL. You can write functions with variables, IF/ELSE, loops, and error handling — all running inside the database engine. This is useful for complex calculations, data validation, and any logic you want to centralize rather than repeat in every app.
+        </div>
+      </div>
+
+      <h3>Simple SQL functions (no PL/pgSQL needed)</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Pure SQL functions</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- A simple utility function</span>
+<span class="kw">CREATE OR REPLACE FUNCTION</span> <span class="fn">full_name</span>(
+    first_name <span class="typ">TEXT</span>,
+    last_name  <span class="typ">TEXT</span>
+) <span class="kw">RETURNS TEXT</span>
+<span class="kw">LANGUAGE SQL IMMUTABLE</span>  <span class="cmt">-- always same output for same input (cacheable)</span>
+<span class="kw">AS</span> $$
+    <span class="kw">SELECT</span> <span class="fn">TRIM</span>(first_name || <span class="str">' '</span> || last_name);
+$$;
+
+<span class="cmt">-- Use it in a query</span>
+<span class="kw">SELECT</span> <span class="fn">full_name</span>(first_name, last_name) <span class="kw">FROM</span> <span class="tbl">users</span>;
+
+<span class="cmt">-- A function that queries a table</span>
+<span class="kw">CREATE OR REPLACE FUNCTION</span> <span class="fn">user_order_count</span>(p_user_id <span class="typ">BIGINT</span>)
+<span class="kw">RETURNS INT</span>
+<span class="kw">LANGUAGE SQL STABLE</span>  <span class="cmt">-- reads DB, doesn't modify it</span>
+<span class="kw">AS</span> $$
+    <span class="kw">SELECT COUNT</span>(*)::INT <span class="kw">FROM</span> <span class="tbl">orders</span> <span class="kw">WHERE</span> user_id = p_user_id;
+$$;
+
+<span class="cmt">-- Call it</span>
+<span class="kw">SELECT</span> username, <span class="fn">user_order_count</span>(id) <span class="kw">AS</span> orders
+<span class="kw">FROM</span> <span class="tbl">users</span>;</pre></div>
+      </div>
+
+      <h3>PL/pgSQL — full programming language</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">plpgsql — Variables, IF, loops</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Function with variables, IF/ELSE, exception handling</span>
+<span class="kw">CREATE OR REPLACE FUNCTION</span> <span class="fn">apply_discount</span>(
+    p_order_id  <span class="typ">BIGINT</span>,
+    p_discount  <span class="typ">NUMERIC</span>  <span class="cmt">-- percentage, e.g. 10 means 10%</span>
+) <span class="kw">RETURNS NUMERIC</span>
+<span class="kw">LANGUAGE plpgsql</span>
+<span class="kw">AS</span> $$
+<span class="plpg">DECLARE</span>
+    v_current_total  <span class="typ">NUMERIC</span>;
+    v_new_total      <span class="typ">NUMERIC</span>;
+<span class="plpg">BEGIN</span>
+    <span class="cmt">-- Get the current order total</span>
+    <span class="kw">SELECT</span> total <span class="kw">INTO</span> v_current_total
+    <span class="kw">FROM</span> <span class="tbl">orders</span>
+    <span class="kw">WHERE</span> id = p_order_id;
+
+    <span class="cmt">-- Check the order exists</span>
+    <span class="plpg">IF NOT FOUND THEN</span>
+        <span class="fn">RAISE EXCEPTION</span> <span class="str">'Order % not found'</span>, p_order_id;
+    <span class="plpg">END IF</span>;
+
+    <span class="cmt">-- Validate discount range</span>
+    <span class="plpg">IF</span> p_discount < <span class="num">0</span> <span class="plpg">OR</span> p_discount > <span class="num">100</span> <span class="plpg">THEN</span>
+        <span class="fn">RAISE EXCEPTION</span> <span class="str">'Discount must be between 0 and 100'</span>;
+    <span class="plpg">END IF</span>;
+
+    <span class="cmt">-- Calculate and update</span>
+    v_new_total := v_current_total * (<span class="num">1</span> - p_discount / <span class="num">100.0</span>);
+
+    <span class="kw">UPDATE</span> <span class="tbl">orders</span>
+    <span class="kw">SET</span> total = v_new_total, updated_at = <span class="fn">NOW</span>()
+    <span class="kw">WHERE</span> id = p_order_id;
+
+    <span class="plpg">RETURN</span> v_new_total;
+<span class="plpg">END</span>;
+$$;
+
+<span class="cmt">-- Call it</span>
+<span class="kw">SELECT</span> <span class="fn">apply_discount</span>(<span class="num">42</span>, <span class="num">15</span>);  <span class="cmt">-- 15% off order #42</span></pre></div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">plpgsql — Loops and RETURN TABLE</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Function that returns a TABLE (set of rows)</span>
+<span class="kw">CREATE OR REPLACE FUNCTION</span> <span class="fn">top_customers</span>(p_limit <span class="typ">INT DEFAULT</span> <span class="num">10</span>)
+<span class="kw">RETURNS TABLE</span>(
+    username       <span class="typ">TEXT</span>,
+    email          <span class="typ">TEXT</span>,
+    total_spent    <span class="typ">NUMERIC</span>,
+    order_count    <span class="typ">BIGINT</span>
+)
+<span class="kw">LANGUAGE plpgsql STABLE</span>
+<span class="kw">AS</span> $$
+<span class="plpg">BEGIN</span>
+    <span class="plpg">RETURN QUERY</span>
+        <span class="kw">SELECT</span>
+            u.username::TEXT,
+            u.email::TEXT,
+            <span class="fn">SUM</span>(o.total),
+            <span class="fn">COUNT</span>(o.id)
+        <span class="kw">FROM</span> <span class="tbl">users</span> u
+        <span class="kw">JOIN</span> <span class="tbl">orders</span> o <span class="kw">ON</span> o.user_id = u.id
+        <span class="kw">WHERE</span> o.status = <span class="str">'paid'</span>
+        <span class="kw">GROUP BY</span> u.id, u.username, u.email
+        <span class="kw">ORDER BY</span> <span class="fn">SUM</span>(o.total) <span class="kw">DESC</span>
+        <span class="kw">LIMIT</span> p_limit;
+<span class="plpg">END</span>;
+$$;
+
+<span class="cmt">-- Call it like a table</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="fn">top_customers</span>(<span class="num">5</span>);
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="fn">top_customers</span>();  <span class="cmt">-- uses default 10</span></pre></div>
+      </div>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Volatility</th><th>Meaning</th><th>Can be optimized?</th></tr></thead>
+          <tbody>
+            <tr><td><code>IMMUTABLE</code></td><td>Same inputs always produce same output. No DB access.</td><td>✅ Result can be cached forever</td></tr>
+            <tr><td><code>STABLE</code></td><td>Same inputs return same result within one query. Reads DB.</td><td>✅ Can use indexes, cached per query</td></tr>
+            <tr><td><code>VOLATILE</code></td><td>May return different results each call (default). Can modify DB.</td><td>❌ Never cached</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="box box-tip">
+        <div class="box-label">💡 Always declare volatility</div>
+        Adding <code>IMMUTABLE</code> or <code>STABLE</code> when appropriate lets the planner optimize your function calls significantly. A function used in a WHERE clause with the correct volatility can be pushed down and use indexes.
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════
+         LESSON 04 — STORED PROCEDURES
+    ══════════════════════════════════════════════ -->
+    <section class="lesson" id="procedures">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 04</span>
+        <div>
+          <div class="lesson-title">Stored Procedures</div>
+          <div class="lesson-sub">Functions that can manage their own transactions</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>Stored procedures look almost identical to functions but have one superpower: they can COMMIT and ROLLBACK transactions themselves.</strong> A function always runs inside the caller's transaction. A procedure can start, commit, or roll back sub-transactions independently. Use procedures for long batch operations where you want to commit progress in chunks.
+        </div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">plpgsql — Stored procedure (CALL, not SELECT)</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Procedure: process all pending orders</span>
+<span class="kw">CREATE OR REPLACE PROCEDURE</span> <span class="fn">process_pending_orders</span>()
+<span class="kw">LANGUAGE plpgsql</span>
+<span class="kw">AS</span> $$
+<span class="plpg">DECLARE</span>
+    v_order    <span class="tbl">orders</span>%ROWTYPE;
+    v_count    INT := <span class="num">0</span>;
+<span class="plpg">BEGIN</span>
+    <span class="plpg">FOR</span> v_order <span class="plpg">IN</span>
+        <span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">orders</span>
+        <span class="kw">WHERE</span> status = <span class="str">'pending'</span>
+        <span class="kw">ORDER BY</span> created_at
+        <span class="kw">LIMIT</span> <span class="num">1000</span>  <span class="cmt">-- process in batches</span>
+    <span class="plpg">LOOP</span>
+        <span class="cmt">-- Mark as processing</span>
+        <span class="kw">UPDATE</span> <span class="tbl">orders</span>
+        <span class="kw">SET</span> status = <span class="str">'processing'</span>, updated_at = <span class="fn">NOW</span>()
+        <span class="kw">WHERE</span> id = v_order.id;
+
+        v_count := v_count + <span class="num">1</span>;
+
+        <span class="cmt">-- Commit every 100 rows so we don't hold one huge transaction</span>
+        <span class="plpg">IF</span> v_count % <span class="num">100</span> = <span class="num">0</span> <span class="plpg">THEN</span>
+            <span class="kw">COMMIT</span>;  <span class="cmt">-- ← only procedures can do this, not functions</span>
+        <span class="plpg">END IF</span>;
+    <span class="plpg">END LOOP</span>;
+
+    <span class="kw">COMMIT</span>;  <span class="cmt">-- final commit</span>
+    <span class="fn">RAISE NOTICE</span> <span class="str">'Processed % orders'</span>, v_count;
+<span class="plpg">END</span>;
+$$;
+
+<span class="cmt">-- Call a procedure with CALL (not SELECT)</span>
+<span class="kw">CALL</span> <span class="fn">process_pending_orders</span>();</pre></div>
+      </div>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th></th><th>Function</th><th>Procedure</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Returns value</strong></td><td>Yes — RETURNS type</td><td>No (use OUT parameters)</td></tr>
+            <tr><td><strong>Can COMMIT/ROLLBACK</strong></td><td>❌ No</td><td>✅ Yes</td></tr>
+            <tr><td><strong>Called with</strong></td><td>SELECT fn() or in expressions</td><td>CALL proc()</td></tr>
+            <tr><td><strong>Use for</strong></td><td>Calculations, returning data</td><td>Batch jobs, ETL, multi-step DML</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════
+         LESSON 05 — TRIGGERS
+    ══════════════════════════════════════════════ -->
+    <section class="lesson" id="triggers">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 05</span>
+        <div>
+          <div class="lesson-title">Triggers</div>
+          <div class="lesson-sub">Auto-execute code on INSERT, UPDATE, or DELETE</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>A trigger is a function that fires automatically when something happens to a table.</strong> You define WHEN it fires (BEFORE or AFTER), WHAT operation (INSERT, UPDATE, DELETE), and WHICH table. PostgreSQL calls your trigger function every time. The two most common uses: auto-updating <code>updated_at</code> timestamps, and keeping an audit log of every change.
+        </div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">plpgsql — Auto-update updated_at (every app needs this)</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Step 1: create the trigger FUNCTION</span>
+<span class="cmt">-- Trigger functions return TRIGGER type and take no args</span>
+<span class="kw">CREATE OR REPLACE FUNCTION</span> <span class="fn">set_updated_at</span>()
+<span class="kw">RETURNS TRIGGER</span>
+<span class="kw">LANGUAGE plpgsql</span>
+<span class="kw">AS</span> $$
+<span class="plpg">BEGIN</span>
+    NEW.updated_at := <span class="fn">NOW</span>();  <span class="cmt">-- NEW = the row being inserted/updated</span>
+    <span class="plpg">RETURN NEW</span>;
+<span class="plpg">END</span>;
+$$;
+
+<span class="cmt">-- Step 2: attach the trigger to a table</span>
+<span class="kw">CREATE TRIGGER</span> trg_users_updated_at
+    <span class="kw">BEFORE UPDATE ON</span> <span class="tbl">users</span>
+    <span class="kw">FOR EACH ROW</span>
+    <span class="kw">EXECUTE FUNCTION</span> <span class="fn">set_updated_at</span>();
+
+<span class="cmt">-- Add to orders table too (reuse the same function!)</span>
+<span class="kw">CREATE TRIGGER</span> trg_orders_updated_at
+    <span class="kw">BEFORE UPDATE ON</span> <span class="tbl">orders</span>
+    <span class="kw">FOR EACH ROW</span>
+    <span class="kw">EXECUTE FUNCTION</span> <span class="fn">set_updated_at</span>();
+
+<span class="cmt">-- Now every UPDATE automatically sets updated_at = NOW()</span>
+<span class="kw">UPDATE</span> <span class="tbl">users</span> <span class="kw">SET</span> email = <span class="str">'new@example.com'</span> <span class="kw">WHERE</span> id = <span class="num">1</span>;
+<span class="cmt">-- updated_at is now current timestamp — no need to set it manually</span></pre></div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">plpgsql — Audit log trigger (track every change)</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Create an audit table</span>
+<span class="kw">CREATE TABLE</span> <span class="tbl">audit_log</span> (
+    id         <span class="typ">BIGSERIAL PRIMARY KEY</span>,
+    table_name <span class="typ">TEXT NOT NULL</span>,
+    operation  <span class="typ">TEXT NOT NULL</span>,       <span class="cmt">-- INSERT / UPDATE / DELETE</span>
+    row_id     <span class="typ">BIGINT</span>,
+    old_data   <span class="typ">JSONB</span>,               <span class="cmt">-- what it was before</span>
+    new_data   <span class="typ">JSONB</span>,               <span class="cmt">-- what it became after</span>
+    changed_by <span class="typ">TEXT DEFAULT</span> <span class="fn">current_user</span>,
+    changed_at <span class="typ">TIMESTAMPTZ DEFAULT NOW()</span>
+);
+
+<span class="cmt">-- Generic audit trigger function (reusable on any table)</span>
+<span class="kw">CREATE OR REPLACE FUNCTION</span> <span class="fn">audit_trigger_fn</span>()
+<span class="kw">RETURNS TRIGGER</span>
+<span class="kw">LANGUAGE plpgsql SECURITY DEFINER</span>
+<span class="kw">AS</span> $$
+<span class="plpg">BEGIN</span>
+    <span class="plpg">IF</span> (TG_OP = <span class="str">'INSERT'</span>) <span class="plpg">THEN</span>
+        <span class="kw">INSERT INTO</span> <span class="tbl">audit_log</span> (table_name, operation, row_id, new_data)
+        <span class="kw">VALUES</span> (TG_TABLE_NAME, <span class="str">'INSERT'</span>, NEW.id, <span class="fn">to_jsonb</span>(NEW));
+
+    <span class="plpg">ELSIF</span> (TG_OP = <span class="str">'UPDATE'</span>) <span class="plpg">THEN</span>
+        <span class="kw">INSERT INTO</span> <span class="tbl">audit_log</span> (table_name, operation, row_id, old_data, new_data)
+        <span class="kw">VALUES</span> (TG_TABLE_NAME, <span class="str">'UPDATE'</span>, NEW.id, <span class="fn">to_jsonb</span>(OLD), <span class="fn">to_jsonb</span>(NEW));
+
+    <span class="plpg">ELSIF</span> (TG_OP = <span class="str">'DELETE'</span>) <span class="plpg">THEN</span>
+        <span class="kw">INSERT INTO</span> <span class="tbl">audit_log</span> (table_name, operation, row_id, old_data)
+        <span class="kw">VALUES</span> (TG_TABLE_NAME, <span class="str">'DELETE'</span>, OLD.id, <span class="fn">to_jsonb</span>(OLD));
+    <span class="plpg">END IF</span>;
+
+    <span class="plpg">RETURN NULL</span>;  <span class="cmt">-- AFTER triggers on row: return value is ignored</span>
+<span class="plpg">END</span>;
+$$;
+
+<span class="cmt">-- Attach to users table</span>
+<span class="kw">CREATE TRIGGER</span> trg_users_audit
+    <span class="kw">AFTER INSERT OR UPDATE OR DELETE ON</span> <span class="tbl">users</span>
+    <span class="kw">FOR EACH ROW</span>
+    <span class="kw">EXECUTE FUNCTION</span> <span class="fn">audit_trigger_fn</span>();
+
+<span class="cmt">-- Now every change is recorded automatically</span>
+<span class="kw">UPDATE</span> <span class="tbl">users</span> <span class="kw">SET</span> status = <span class="str">'suspended'</span> <span class="kw">WHERE</span> id = <span class="num">3</span>;
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">audit_log</span> <span class="kw">ORDER BY</span> changed_at <span class="kw">DESC LIMIT</span> <span class="num">5</span>;</pre></div>
+      </div>
+
+      <h3>Trigger timing and scope</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Option</th><th>Meaning</th><th>Use case</th></tr></thead>
+          <tbody>
+            <tr><td><code>BEFORE</code></td><td>Fires before the operation. Can modify NEW to change what gets written.</td><td>set_updated_at, data normalisation, validation</td></tr>
+            <tr><td><code>AFTER</code></td><td>Fires after the operation. Row is already written.</td><td>Audit logs, notifying other systems</td></tr>
+            <tr><td><code>INSTEAD OF</code></td><td>Replaces the operation entirely. Only on views.</td><td>Making complex views updatable</td></tr>
+            <tr><td><code>FOR EACH ROW</code></td><td>Fires once per affected row.</td><td>Most triggers</td></tr>
+            <tr><td><code>FOR EACH STATEMENT</code></td><td>Fires once per SQL statement, even if 0 or 1000 rows affected.</td><td>Logging that a statement ran</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Trigger special variables</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">plpgsql — Trigger variables reference</span></div>
+        <div class="code-body"><pre>
+NEW          <span class="cmt">-- The new row (INSERT, UPDATE). NULL for DELETE.</span>
+OLD          <span class="cmt">-- The old row (UPDATE, DELETE). NULL for INSERT.</span>
+TG_OP        <span class="cmt">-- 'INSERT', 'UPDATE', or 'DELETE'</span>
+TG_TABLE_NAME <span class="cmt">-- Name of the table that fired the trigger</span>
+TG_WHEN      <span class="cmt">-- 'BEFORE' or 'AFTER'</span>
+TG_NARGS     <span class="cmt">-- Number of args passed to trigger</span>
+TG_ARGV      <span class="cmt">-- Array of args: TG_ARGV[0], TG_ARGV[1]...</span>
+
+<span class="cmt">-- Example: trigger that only runs when a specific column changes</span>
+<span class="kw">CREATE OR REPLACE FUNCTION</span> <span class="fn">on_status_change</span>()
+<span class="kw">RETURNS TRIGGER LANGUAGE plpgsql AS</span> $$
+<span class="plpg">BEGIN</span>
+    <span class="plpg">IF</span> OLD.status <span class="op">IS DISTINCT FROM</span> NEW.status <span class="plpg">THEN</span>
+        <span class="fn">RAISE NOTICE</span> <span class="str">'Order % changed from % to %'</span>,
+            NEW.id, OLD.status, NEW.status;
+    <span class="plpg">END IF</span>;
+    <span class="plpg">RETURN NEW</span>;
+<span class="plpg">END</span>;
+$$;
+
+<span class="kw">CREATE TRIGGER</span> trg_order_status
+    <span class="kw">BEFORE UPDATE OF</span> status <span class="kw">ON</span> <span class="tbl">orders</span>  <span class="cmt">-- only fires when status column changes</span>
+    <span class="kw">FOR EACH ROW EXECUTE FUNCTION</span> <span class="fn">on_status_change</span>();</pre></div>
+      </div>
+
+      <div class="quiz" id="q1">
+        <div class="quiz-q">🧠 You want a trigger that fires once when you run <code>DELETE FROM orders WHERE status = 'cancelled'</code> regardless of how many rows it deletes. Which trigger type do you use?</div>
+        <div class="quiz-options">
+          <button class="quiz-opt" onclick="answer(this,false,'q1')">A) AFTER DELETE FOR EACH ROW</button>
+          <button class="quiz-opt" onclick="answer(this,true,'q1')">B) AFTER DELETE FOR EACH STATEMENT</button>
+          <button class="quiz-opt" onclick="answer(this,false,'q1')">C) BEFORE DELETE FOR EACH ROW</button>
+          <button class="quiz-opt" onclick="answer(this,false,'q1')">D) INSTEAD OF DELETE</button>
+        </div>
+        <div class="quiz-explain" id="q1-explain">✅ <strong>B is correct.</strong> FOR EACH STATEMENT fires once per SQL statement regardless of how many rows were affected. FOR EACH ROW fires once for every affected row — on a DELETE of 10,000 rows that's 10,000 trigger calls. Use STATEMENT-level triggers when you care that the operation happened, not about individual rows.</div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════
+         LESSON 06 — TRANSACTIONS IN DEPTH
+    ══════════════════════════════════════════════ -->
+    <section class="lesson" id="transactions">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 06</span>
+        <div>
+          <div class="lesson-title">Transactions in Depth</div>
+          <div class="lesson-sub">Isolation levels, savepoints, deadlocks, advisory locks</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>You learned BEGIN/COMMIT/ROLLBACK in Part 1. Now let's go deeper.</strong> Real apps run hundreds of concurrent transactions. Isolation levels control what one transaction can see while another is still running. Get this wrong and you get dirty reads, phantom rows, or lost updates. PostgreSQL defaults are excellent — but you need to understand them to use them right.
+        </div>
+      </div>
+
+      <h3>Isolation levels</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Level</th><th>Dirty Read</th><th>Non-Repeatable Read</th><th>Phantom Read</th><th>Use when</th></tr></thead>
+          <tbody>
+            <tr><td><code>READ UNCOMMITTED</code></td><td>Possible*</td><td>Yes</td><td>Yes</td><td>Never in Postgres (treated as READ COMMITTED)</td></tr>
+            <tr><td><code>READ COMMITTED</code></td><td>No</td><td>Yes</td><td>Yes</td><td><strong>Default.</strong> Good for most OLTP work.</td></tr>
+            <tr><td><code>REPEATABLE READ</code></td><td>No</td><td>No</td><td>No*</td><td>Reports that must see a consistent snapshot across multiple queries</td></tr>
+            <tr><td><code>SERIALIZABLE</code></td><td>No</td><td>No</td><td>No</td><td>Financial operations, anything requiring strict correctness</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Setting isolation levels</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Default: READ COMMITTED (99% of the time, this is correct)</span>
+<span class="kw">BEGIN</span>;
+<span class="kw">UPDATE</span> <span class="tbl">accounts</span> <span class="kw">SET</span> balance = balance - <span class="num">100</span> <span class="kw">WHERE</span> id = <span class="num">1</span>;
+<span class="kw">UPDATE</span> <span class="tbl">accounts</span> <span class="kw">SET</span> balance = balance + <span class="num">100</span> <span class="kw">WHERE</span> id = <span class="num">2</span>;
+<span class="kw">COMMIT</span>;
+
+<span class="cmt">-- REPEATABLE READ: every SELECT in this transaction sees the same snapshot</span>
+<span class="kw">BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ</span>;
+<span class="kw">SELECT</span> <span class="fn">SUM</span>(balance) <span class="kw">FROM</span> <span class="tbl">accounts</span>;  <span class="cmt">-- sees snapshot at BEGIN time</span>
+<span class="cmt">-- ... do more reads ...</span>
+<span class="kw">SELECT</span> <span class="fn">SUM</span>(balance) <span class="kw">FROM</span> <span class="tbl">accounts</span>;  <span class="cmt">-- same result even if others committed changes</span>
+<span class="kw">COMMIT</span>;
+
+<span class="cmt">-- SERIALIZABLE: maximum safety, may retry on conflict</span>
+<span class="kw">BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE</span>;
+<span class="cmt">-- ... your queries ...</span>
+<span class="kw">COMMIT</span>;  <span class="cmt">-- may raise "ERROR: could not serialize access" — your app must retry</span></pre></div>
+      </div>
+
+      <h3>Savepoints — partial rollbacks</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Savepoints</span></div>
+        <div class="code-body"><pre>
+<span class="kw">BEGIN</span>;
+    <span class="kw">INSERT INTO</span> <span class="tbl">orders</span> (user_id, total) <span class="kw">VALUES</span> (<span class="num">1</span>, <span class="num">99.99</span>);
+
+    <span class="kw">SAVEPOINT</span> after_order;  <span class="cmt">-- mark a point we can roll back to</span>
+
+    <span class="kw">INSERT INTO</span> <span class="tbl">order_items</span> (order_id, product_id, quantity, unit_price)
+    <span class="kw">VALUES</span> (<span class="num">1</span>, <span class="num">999</span>, <span class="num">2</span>, <span class="num">49.99</span>);  <span class="cmt">-- product 999 doesn't exist — this will fail</span>
+
+    <span class="cmt">-- If item insert failed, roll back ONLY to the savepoint</span>
+    <span class="kw">ROLLBACK TO SAVEPOINT</span> after_order;
+
+    <span class="cmt">-- The order INSERT is still in effect — we can continue</span>
+    <span class="kw">INSERT INTO</span> <span class="tbl">order_items</span> (order_id, product_id, quantity, unit_price)
+    <span class="kw">VALUES</span> (<span class="num">1</span>, <span class="num">1</span>, <span class="num">2</span>, <span class="num">49.99</span>);  <span class="cmt">-- product 1 exists — this works</span>
+
+    <span class="kw">RELEASE SAVEPOINT</span> after_order;  <span class="cmt">-- clean up savepoint</span>
+<span class="kw">COMMIT</span>;</pre></div>
+      </div>
+
+      <h3>Deadlocks and how to avoid them</h3>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Deadlock example and prevention</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- DEADLOCK: Transaction A and B lock rows in opposite order</span>
+<span class="cmt">-- Txn A: locks row 1, then tries to lock row 2</span>
+<span class="cmt">-- Txn B: locks row 2, then tries to lock row 1 → deadlock!</span>
+
+<span class="cmt">-- PREVENTION: Always lock rows in the same order</span>
+<span class="cmt">-- Use ORDER BY when doing multi-row updates:</span>
+
+<span class="cmt">-- Bad: may deadlock if two transactions do this simultaneously</span>
+<span class="kw">UPDATE</span> <span class="tbl">accounts</span> <span class="kw">SET</span> balance = balance - <span class="num">100</span> <span class="kw">WHERE</span> id = p_from;
+<span class="kw">UPDATE</span> <span class="tbl">accounts</span> <span class="kw">SET</span> balance = balance + <span class="num">100</span> <span class="kw">WHERE</span> id = p_to;
+
+<span class="cmt">-- Good: lock the smaller ID first, always consistent order</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">accounts</span>
+<span class="kw">WHERE</span> id <span class="kw">IN</span> (p_from, p_to)
+<span class="kw">ORDER BY</span> id
+<span class="kw">FOR UPDATE</span>;  <span class="cmt">-- explicitly lock both rows in a consistent order</span>
+
+<span class="cmt">-- FOR UPDATE: lock rows so no one else can update until you commit</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">products</span>
+<span class="kw">WHERE</span> id = <span class="num">5</span>
+<span class="kw">FOR UPDATE</span>;
+
+<span class="cmt">-- FOR UPDATE SKIP LOCKED: skip rows already locked (queue worker pattern)</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">orders</span>
+<span class="kw">WHERE</span> status = <span class="str">'pending'</span>
+<span class="kw">ORDER BY</span> created_at
+<span class="kw">LIMIT</span> <span class="num">1</span>
+<span class="kw">FOR UPDATE SKIP LOCKED</span>;  <span class="cmt">-- safe for multiple workers processing a queue</span></pre></div>
+      </div>
+
+      <div class="box box-info">
+        <div class="box-label">📌 FOR UPDATE SKIP LOCKED</div>
+        This is the right way to build a job queue in PostgreSQL. Multiple workers can each grab a different row without blocking each other. This pattern replaces Redis queues for many use cases.
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════
+         LESSON 07 — JSONB DEEP DIVE
+    ══════════════════════════════════════════════ -->
+    <section class="lesson" id="jsonb">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 07</span>
+        <div>
+          <div class="lesson-title">JSONB Deep Dive</div>
+          <div class="lesson-sub">PostgreSQL's killer feature — SQL + document database in one</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>JSONB is the reason many teams choose PostgreSQL over MySQL.</strong> It stores JSON as binary (parsed and indexed), so you can query inside JSON fields with full index support — something MySQL can't match. You get the flexibility of a document database combined with the power of relational joins. This is why many teams skip MongoDB entirely.
+        </div>
+      </div>
+
+      <h3>JSON vs JSONB — always use JSONB</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th></th><th>JSON</th><th>JSONB</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Storage</strong></td><td>Raw text — preserves whitespace, key order, duplicates</td><td>Binary parsed — normalised, no whitespace, sorted keys</td></tr>
+            <tr><td><strong>Input speed</strong></td><td>Faster (no parsing)</td><td>Slightly slower (parses on write)</td></tr>
+            <tr><td><strong>Query speed</strong></td><td>Slower (re-parses every time)</td><td>Much faster (already parsed)</td></tr>
+            <tr><td><strong>Indexable</strong></td><td>No</td><td>✅ Yes — GIN index</td></tr>
+            <tr><td><strong>Use</strong></td><td>Almost never</td><td>Always</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — JSONB operators and path queries</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Sample: users table with JSONB preferences column</span>
+<span class="cmt">-- {"theme":"dark","language":"en","notifications":true,"tags":["admin","beta"]}</span>
+
+<span class="cmt">── READ OPERATORS ────────────────────────────────────</span>
+
+<span class="cmt">-- -> returns JSONB (keep as JSON object)</span>
+<span class="kw">SELECT</span> preferences-><span class="str">'theme'</span> <span class="kw">FROM</span> <span class="tbl">users</span>;
+<span class="cmt">-- Result: "dark"  (with quotes — it's JSONB type)</span>
+
+<span class="cmt">-- ->> returns TEXT (cast to plain string)</span>
+<span class="kw">SELECT</span> preferences->><span class="str">'theme'</span> <span class="kw">FROM</span> <span class="tbl">users</span>;
+<span class="cmt">-- Result: dark  (no quotes — use this in WHERE clauses)</span>
+
+<span class="cmt">-- Nested path using #> and #>></span>
+<span class="kw">SELECT</span> preferences#>>'{address,city}' <span class="kw">FROM</span> <span class="tbl">users</span>;
+
+<span class="cmt">-- Filter by JSONB value</span>
+<span class="kw">SELECT</span> id, username <span class="kw">FROM</span> <span class="tbl">users</span>
+<span class="kw">WHERE</span> preferences->><span class="str">'theme'</span> = <span class="str">'dark'</span>;
+
+<span class="cmt">-- @> containment: does this JSONB contain this sub-document?</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">users</span>
+<span class="kw">WHERE</span> preferences @> <span class="str">'{"theme":"dark","notifications":true}'</span>::jsonb;
+
+<span class="cmt">-- ? key exists operator</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">users</span>
+<span class="kw">WHERE</span> preferences ? <span class="str">'theme'</span>;
+
+<span class="cmt">-- ?| any of these keys exist</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">users</span>
+<span class="kw">WHERE</span> preferences ?| <span class="kw">ARRAY</span>[<span class="str">'theme'</span>, <span class="str">'language'</span>];
+
+<span class="cmt">-- ?& all of these keys exist</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="tbl">users</span>
+<span class="kw">WHERE</span> preferences ?& <span class="kw">ARRAY</span>[<span class="str">'theme'</span>, <span class="str">'notifications'</span>];
+
+<span class="cmt">── WRITE OPERATORS ───────────────────────────────────</span>
+
+<span class="cmt">-- || merge/update a JSONB field</span>
+<span class="kw">UPDATE</span> <span class="tbl">users</span>
+<span class="kw">SET</span> preferences = preferences || <span class="str">'{"theme":"light"}'</span>::jsonb
+<span class="kw">WHERE</span> id = <span class="num">1</span>;
+
+<span class="cmt">-- - delete a key</span>
+<span class="kw">UPDATE</span> <span class="tbl">users</span>
+<span class="kw">SET</span> preferences = preferences - <span class="str">'language'</span>
+<span class="kw">WHERE</span> id = <span class="num">1</span>;
+
+<span class="cmt">-- jsonb_set: update a nested key</span>
+<span class="kw">UPDATE</span> <span class="tbl">users</span>
+<span class="kw">SET</span> preferences = <span class="fn">jsonb_set</span>(preferences, <span class="str">'{address,city}'</span>, <span class="str">'"New York"'</span>)
+<span class="kw">WHERE</span> id = <span class="num">1</span>;</pre></div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — JSONB functions</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Expand JSONB object to key-value rows</span>
+<span class="kw">SELECT</span> key, value
+<span class="kw">FROM</span> <span class="tbl">users</span>, <span class="fn">jsonb_each</span>(preferences)
+<span class="kw">WHERE</span> id = <span class="num">1</span>;
+
+<span class="cmt">-- Extract all keys</span>
+<span class="kw">SELECT</span> <span class="fn">jsonb_object_keys</span>(preferences) <span class="kw">FROM</span> <span class="tbl">users</span> <span class="kw">WHERE</span> id = <span class="num">1</span>;
+
+<span class="cmt">-- Build JSONB from columns</span>
+<span class="kw">SELECT</span> <span class="fn">jsonb_build_object</span>(<span class="str">'id'</span>, id, <span class="str">'name'</span>, username, <span class="str">'email'</span>, email)
+<span class="kw">FROM</span> <span class="tbl">users</span> <span class="kw">LIMIT</span> <span class="num">3</span>;
+
+<span class="cmt">-- Aggregate rows into a JSON array</span>
+<span class="kw">SELECT</span> <span class="fn">jsonb_agg</span>(<span class="fn">jsonb_build_object</span>(<span class="str">'id'</span>, id, <span class="str">'name'</span>, username))
+<span class="kw">FROM</span> <span class="tbl">users</span>;
+
+<span class="cmt">-- Index for fast JSONB queries (essential for large tables)</span>
+<span class="kw">CREATE INDEX</span> idx_users_prefs_gin <span class="kw">ON</span> <span class="tbl">users</span> <span class="kw">USING GIN</span>(preferences);
+
+<span class="cmt">-- Index for a specific JSONB path (smaller, faster than full GIN)</span>
+<span class="kw">CREATE INDEX</span> idx_users_theme <span class="kw">ON</span> <span class="tbl">users</span>((preferences->><span class="str">'theme'</span>));</pre></div>
+      </div>
+
+      <div class="box box-warn">
+        <div class="box-label">⚠️ Don't over-use JSONB</div>
+        JSONB is powerful but it's not a replacement for proper relational columns. Rule of thumb: if you query a field in WHERE, JOIN, or ORDER BY regularly — make it a real column. Use JSONB for <strong>truly flexible metadata</strong> where the shape varies per row (user preferences, product attributes, event payloads).
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════
+         LESSON 08 — FULL-TEXT SEARCH
+    ══════════════════════════════════════════════ -->
+    <section class="lesson" id="fts">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 08</span>
+        <div>
+          <div class="lesson-title">Full-Text Search</div>
+          <div class="lesson-sub">Built-in search engine — no Elasticsearch needed for most apps</div>
+        </div>
+      </div>
+
+      <div class="teacher">
+        <div class="teacher-avatar">👨‍🏫</div>
+        <div class="teacher-body">
+          <strong>PostgreSQL has a full-text search engine built in — and it's surprisingly powerful.</strong> It handles stemming (run/running/ran all match "run"), stop words (ignore "the", "a"), ranking by relevance, and phrase search. For most apps with a search box, you don't need Elasticsearch. You need <code>tsvector</code> and a GIN index.
+        </div>
+      </div>
+
+      <h3>The core concepts</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Concept</th><th>What it is</th><th>Example</th></tr></thead>
+          <tbody>
+            <tr><td><code>tsvector</code></td><td>A preprocessed, searchable document. Words are stemmed, stop words removed.</td><td><code>'fast:1 run:2 user:3'</code></td></tr>
+            <tr><td><code>tsquery</code></td><td>A search query with AND (&), OR (|), NOT (!), phrase (&lt;-&gt;).</td><td><code>'fast & run'</code></td></tr>
+            <tr><td><code>@@</code></td><td>The match operator — does this tsvector match this tsquery?</td><td><code>doc @@ query</code></td></tr>
+            <tr><td><code>ts_rank</code></td><td>Relevance score — how well does the document match the query?</td><td>Higher = more relevant</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Full-text search step by step</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Step 1: understand tsvector</span>
+<span class="kw">SELECT</span> <span class="fn">to_tsvector</span>(<span class="str">'english'</span>, <span class="str">'Fast running users are searching for products'</span>);
+<span class="cmt">-- 'fast':1 'product':7 'run':2 'search':6 'user':3</span>
+<span class="cmt">-- Notice: 'are','for' removed (stop words), 'running'→'run' (stemmed)</span>
+
+<span class="cmt">-- Step 2: understand tsquery</span>
+<span class="kw">SELECT</span> <span class="fn">to_tsquery</span>(<span class="str">'english'</span>, <span class="str">'running & search'</span>);
+<span class="cmt">-- 'run' & 'search'  ← stemmed automatically</span>
+
+<span class="cmt">-- Step 3: the @@ match operator</span>
+<span class="kw">SELECT</span>
+    <span class="fn">to_tsvector</span>(<span class="str">'english'</span>, <span class="str">'Fast running users'</span>)
+    @@
+    <span class="fn">to_tsquery</span>(<span class="str">'english'</span>, <span class="str">'run'</span>);
+<span class="cmt">-- true  (because 'running' stems to 'run')</span>
+
+<span class="cmt">-- Step 4: search products</span>
+<span class="kw">SELECT</span> name, description
+<span class="kw">FROM</span> <span class="tbl">products</span>
+<span class="kw">WHERE</span>
+    <span class="fn">to_tsvector</span>(<span class="str">'english'</span>, name || <span class="str">' '</span> || <span class="fn">COALESCE</span>(description,<span class="str">''</span>))
+    @@
+    <span class="fn">plainto_tsquery</span>(<span class="str">'english'</span>, <span class="str">'wireless headphones'</span>);
+<span class="cmt">-- plainto_tsquery converts plain text query to tsquery automatically</span>
+
+<span class="cmt">-- Step 5: rank results by relevance</span>
+<span class="kw">SELECT</span>
+    name,
+    <span class="fn">ts_rank</span>(
+        <span class="fn">to_tsvector</span>(<span class="str">'english'</span>, name || <span class="str">' '</span> || <span class="fn">COALESCE</span>(description,<span class="str">''</span>)),
+        <span class="fn">plainto_tsquery</span>(<span class="str">'english'</span>, <span class="str">'wireless headphones'</span>)
+    ) <span class="kw">AS</span> relevance
+<span class="kw">FROM</span> <span class="tbl">products</span>
+<span class="kw">WHERE</span>
+    <span class="fn">to_tsvector</span>(<span class="str">'english'</span>, name || <span class="str">' '</span> || <span class="fn">COALESCE</span>(description,<span class="str">''</span>))
+    @@
+    <span class="fn">plainto_tsquery</span>(<span class="str">'english'</span>, <span class="str">'wireless headphones'</span>)
+<span class="kw">ORDER BY</span> relevance <span class="kw">DESC</span>;</pre></div>
+      </div>
+
+      <h3>The right way — generated column + GIN index</h3>
+      <p>Calling <code>to_tsvector()</code> on every query is expensive. The correct approach is to pre-compute the tsvector once and store it in a generated column, then index it.</p>
+
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">sql — Production-ready full-text search</span></div>
+        <div class="code-body"><pre>
+<span class="cmt">-- Add a generated tsvector column to products</span>
+<span class="kw">ALTER TABLE</span> <span class="tbl">products</span>
+<span class="kw">ADD COLUMN</span> search_vector <span class="typ">TSVECTOR</span>
+    <span class="kw">GENERATED ALWAYS AS</span> (
+        <span class="fn">to_tsvector</span>(<span class="str">'english'</span>,
+            <span class="fn">COALESCE</span>(name, <span class="str">''</span>) || <span class="str">' '</span> ||
+            <span class="fn">COALESCE</span>(description, <span class="str">''</span>) || <span class="str">' '</span> ||
+            <span class="fn">COALESCE</span>(category, <span class="str">''</span>)
+        )
+    ) <span class="kw">STORED</span>;
+
+<span class="cmt">-- Index it</span>
+<span class="kw">CREATE INDEX</span> idx_products_fts <span class="kw">ON</span> <span class="tbl">products</span> <span class="kw">USING GIN</span>(search_vector);
+
+<span class="cmt">-- Now searching is fast and clean</span>
+<span class="kw">SELECT</span>
+    name, category, price,
+    <span class="fn">ts_rank</span>(search_vector, query) <span class="kw">AS</span> rank
+<span class="kw">FROM</span> <span class="tbl">products</span>,
+     <span class="fn">plainto_tsquery</span>(<span class="str">'english'</span>, <span class="str">'wireless headphone'</span>) <span class="kw">AS</span> query
+<span class="kw">WHERE</span> search_vector @@ query
+<span class="kw">ORDER BY</span> rank <span class="kw">DESC</span>
+<span class="kw">LIMIT</span> <span class="num">20</span>;
+
+<span class="cmt">-- Phrase search: "noise cancelling" (words must appear in this order)</span>
+<span class="kw">SELECT</span> name <span class="kw">FROM</span> <span class="tbl">products</span>
+<span class="kw">WHERE</span> search_vector @@ <span class="fn">phraseto_tsquery</span>(<span class="str">'english'</span>, <span class="str">'noise cancelling'</span>);
+
+<span class="cmt">-- websearch_to_tsquery: lets users type Google-style queries</span>
+<span class="cmt">-- "wireless headphones" -sony   means: has both words, not sony</span>
+<span class="kw">SELECT</span> name <span class="kw">FROM</span> <span class="tbl">products</span>
+<span class="kw">WHERE</span> search_vector @@ <span class="fn">websearch_to_tsquery</span>(<span class="str">'english'</span>, <span class="str">'"wireless headphones" -sony'</span>);
+
+<span class="cmt">-- Highlight matching words in results (for UI snippets)</span>
+<span class="kw">SELECT</span>
+    name,
+    <span class="fn">ts_headline</span>(<span class="str">'english'</span>, description,
+        <span class="fn">plainto_tsquery</span>(<span class="str">'english'</span>, <span class="str">'wireless headphones'</span>),
+        <span class="str">'MaxWords=20,MinWords=5,StartSel=&lt;mark&gt;,StopSel=&lt;/mark&gt;'</span>
+    ) <span class="kw">AS</span> snippet
+<span class="kw">FROM</span> <span class="tbl">products</span>
+<span class="kw">WHERE</span> search_vector @@ <span class="fn">plainto_tsquery</span>(<span class="str">'english'</span>, <span class="str">'wireless headphones'</span>);</pre></div>
+      </div>
+
+      <div class="box box-tip">
+        <div class="box-label">💡 When to use PostgreSQL FTS vs Elasticsearch</div>
+        <strong>Use PostgreSQL FTS when:</strong> your search is over data already in Postgres, you need relevance ranking + simple search, and you have &lt;10M documents. <br/><strong>Use Elasticsearch when:</strong> you need complex faceting, fuzzy matching, autocomplete, synonyms, or are indexing terabytes of text across multiple sources.
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════
+         LESSON 09 — RECAP
+    ══════════════════════════════════════════════ -->
+    <section class="lesson" id="recap">
+      <div class="lesson-header">
+        <span class="lesson-num">Lesson 09</span>
+        <div>
+          <div class="lesson-title">Part 3 Recap & What's Next</div>
+          <div class="lesson-sub">You've now learned what separates PostgreSQL experts from beginners</div>
+        </div>
+      </div>
+
+      <div class="summary">
+        <h4>✅ What you learned in Part 3</h4>
+        <ul>
+          <li>Views — save complex JOINs as named virtual tables; expose only safe columns to roles</li>
+          <li>CREATE OR REPLACE VIEW, WITH CHECK OPTION for updatable views</li>
+          <li>Materialized views — store pre-computed results on disk; REFRESH CONCURRENTLY without locking</li>
+          <li>Index materialized views just like tables for instant query performance</li>
+          <li>SQL functions (IMMUTABLE/STABLE/VOLATILE) and RETURNS TABLE pattern</li>
+          <li>PL/pgSQL — DECLARE, BEGIN/END, IF/ELSIF/ELSE, FOR loops, RAISE EXCEPTION/NOTICE</li>
+          <li>Stored procedures — can COMMIT/ROLLBACK inside; call with CALL not SELECT</li>
+          <li>Triggers — BEFORE/AFTER, FOR EACH ROW/STATEMENT; NEW, OLD, TG_OP variables</li>
+          <li>Auto-updating updated_at and audit logs — the two most important trigger patterns</li>
+          <li>Transaction isolation levels — READ COMMITTED (default) vs REPEATABLE READ vs SERIALIZABLE</li>
+          <li>Savepoints for partial rollbacks within a transaction</li>
+          <li>FOR UPDATE SKIP LOCKED — the right way to build a job queue in PostgreSQL</li>
+          <li>JSONB operators: ->, ->>, @>, ?, ||, jsonb_set, jsonb_agg, GIN indexing</li>
+          <li>Full-text search: tsvector, tsquery, @@, ts_rank, ts_headline, generated columns + GIN index</li>
+        </ul>
+      </div>
+
+      <h3>🚀 Coming in Part 4 — Production PostgreSQL</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:16px;">
+        <div class="card"><div style="font-size:20px;margin-bottom:8px">📊</div><h4>Partitioning</h4><p>Split huge tables by range, list, or hash. Keep queries fast as your data grows to billions of rows.</p></div>
+        <div class="card"><div style="font-size:20px;margin-bottom:8px">🔄</div><h4>Replication & HA</h4><p>Streaming replication, logical replication, read replicas, failover. How production Postgres stays alive.</p></div>
+        <div class="card"><div style="font-size:20px;margin-bottom:8px">💾</div><h4>Backup & Restore</h4><p>pg_dump, pg_restore, pg_basebackup, point-in-time recovery. Never lose data.</p></div>
+        <div class="card"><div style="font-size:20px;margin-bottom:8px">🔧</div><h4>Configuration Tuning</h4><p>shared_buffers, work_mem, max_connections, autovacuum. Squeeze maximum performance out of your server.</p></div>
+        <div class="card"><div style="font-size:20px;margin-bottom:8px">📈</div><h4>Monitoring & pg_stat</h4><p>pg_stat_activity, pg_stat_user_tables, pg_stat_bgwriter. Know what your database is doing right now.</p></div>
+        <div class="card"><div style="font-size:20px;margin-bottom:8px">🏊</div><h4>Connection Pooling</h4><p>PgBouncer, connection limits, why you can't have 10,000 direct connections, and how to handle it.</p></div>
+      </div>
+
+      <div class="box box-info">
+        <div class="box-label">📌 Practice before Part 4</div>
+        Build these on your e-commerce schema: (1) A view that shows each order with a JSON array of its items. (2) A trigger that reduces <code>products.stock_qty</code> automatically when an order_item is inserted. (3) A materialized view of monthly revenue, refreshed manually. (4) Full-text search on product name + description.
+      </div>
+
+      <div class="nav-btns">
+        <a class="nav-btn" href="part2.html">← Part 2: Relationships & Queries</a>
+        <a class="nav-btn primary" href="#">Part 4 — Coming Soon →</a>
+      </div>
+    </section>
+
+  </div>
+  <footer>
+    🐘 PostgreSQL Learn from Zero &nbsp;·&nbsp; Part 3 of 4 &nbsp;·&nbsp;
+    <a href="https://bjonnalagadda-dsa.github.io/dev-hub/" style="color:var(--accent)">← Back to Dev Hub</a>
+  </footer>
+</main>
+
+<script>
+  const ids = ['views','matviews','functions','procedures','triggers','transactions','jsonb','fts','recap'];
+  const navLinks = document.querySelectorAll('.nav-link');
+  const progressFill = document.getElementById('progress');
+
+  document.querySelectorAll('.lesson').forEach(s => {
+    new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const id = e.target.id;
+          navLinks.forEach(l => l.classList.remove('active'));
+          const a = document.querySelector(`.nav-link[href="#${id}"]`);
+          if (a) a.classList.add('active');
+          const idx = ids.indexOf(id);
+          if (idx >= 0) progressFill.style.width = ((idx + 1) / ids.length * 100) + '%';
+        }
+      });
+    }, { threshold: 0.2 }).observe(s);
+  });
+
+  function answer(btn, correct, qid) {
+    btn.closest('.quiz-options').querySelectorAll('.quiz-opt').forEach(o => o.disabled = true);
+    btn.classList.add(correct ? 'correct' : 'wrong');
+    document.getElementById(qid + '-explain').classList.add('show');
+  }
+
+  navLinks.forEach(l => l.addEventListener('click', () => {
+    if (window.innerWidth <= 820) document.querySelector('.sidebar').classList.remove('open');
+  }));
+</script>
+</body>
+</html>
